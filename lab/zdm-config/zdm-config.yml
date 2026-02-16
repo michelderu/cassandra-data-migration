@@ -1,0 +1,46 @@
+# ZDM Proxy Configuration for Lab Environment
+
+# Origin cluster (DSE 5.1)
+origin_contact_points: "dse-node1,dse-node2,dse-node3"
+origin_port: 9042
+origin_username: "cassandra"
+origin_password: "cassandra"
+origin_local_datacenter: "dc1"
+origin_connection_timeout_ms: 5000
+origin_request_timeout_ms: 12000
+
+# Target cluster (HCD)
+target_contact_points: "hcd-node1,hcd-node2,hcd-node3"
+target_port: 9042
+target_username: "cassandra"
+target_password: "cassandra"
+target_local_datacenter: "datacenter1"
+target_connection_timeout_ms: 5000
+target_request_timeout_ms: 12000
+
+# Proxy settings
+proxy_listen_port: 9042
+proxy_listen_address: "0.0.0.0"
+proxy_max_client_connections: 1000
+proxy_max_stream_ids: 2048
+
+# Read routing configuration
+# Options: PRIMARY_ONLY, DUAL, TARGET_ONLY
+read_mode: "PRIMARY_ONLY"
+
+# Primary cluster
+# Options: ORIGIN, TARGET
+primary_cluster: "ORIGIN"
+
+# Async handshake timeout
+async_handshake_timeout_ms: 4000
+
+# Metrics
+metrics_enabled: true
+metrics_port: 14001
+metrics_prefix: "zdm"
+
+# Logging
+log_level: "INFO"
+
+# Made with Bob

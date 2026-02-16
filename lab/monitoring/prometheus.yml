@@ -1,0 +1,30 @@
+# Prometheus configuration for monitoring migration
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  # ZDM Proxy metrics
+  - job_name: 'zdm-proxy'
+    static_configs:
+      - targets: ['zdm-proxy:14001']
+    metrics_path: '/metrics'
+
+  # DSE JMX metrics (if exposed)
+  - job_name: 'dse-cluster'
+    static_configs:
+      - targets: 
+        - 'dse-node1:7199'
+        - 'dse-node2:7199'
+        - 'dse-node3:7199'
+
+  # HCD JMX metrics (if exposed)
+  - job_name: 'hcd-cluster'
+    static_configs:
+      - targets:
+        - 'hcd-node1:7199'
+        - 'hcd-node2:7199'
+        - 'hcd-node3:7199'
+
+# Made with Bob

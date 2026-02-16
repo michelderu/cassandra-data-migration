@@ -1,0 +1,294 @@
+# Docker Compose for DSE to HCD Migration Lab
+# Compatible with both AMD64 and ARM64 (Apple Silicon with Rosetta 2)
+#
+# For Apple Silicon (M1/M2/M3), start Colima with Rosetta 2 emulation:
+# colima start --arch aarch64 --vm-type=vz --vz-rosetta --cpu 6 --memory 12 --disk 60
+
+services:
+  # DSE 5.1 Cluster (Source)
+  dse-node1:
+    image: datastax/dse-server:5.1.35
+    container_name: dse-node1
+    hostname: dse-node1
+    networks:
+      - cassandra-migration
+    ports:
+      - "9042:9042"   # CQL
+      - "9160:9160"   # Thrift
+      - "7000:7000"   # Inter-node
+      - "7199:7199"   # JMX
+    environment:
+      - DS_LICENSE=accept
+      - CLUSTER_NAME=DSE_Cluster
+      - DC=dc1
+      - RACK=rack1
+      - SEEDS=dse-node1
+      - START_RPC=true
+    volumes:
+      - dse-node1-data:/var/lib/cassandra
+      - ./init-scripts:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD", "cqlsh", "-e", "describe keyspaces"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    mem_limit: 2g
+    cpus: 1.0
+
+  dse-node2:
+    image: datastax/dse-server:5.1.35
+    container_name: dse-node2
+    hostname: dse-node2
+    networks:
+      - cassandra-migration
+    environment:
+      - DS_LICENSE=accept
+      - CLUSTER_NAME=DSE_Cluster
+      - DC=dc1
+      - RACK=rack1
+      - SEEDS=dse-node1
+      - START_RPC=true
+    volumes:
+      - dse-node2-data:/var/lib/cassandra
+    depends_on:
+      dse-node1:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "cqlsh", "-e", "describe keyspaces"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    mem_limit: 2g
+    cpus: 1.0
+
+  dse-node3:
+    image: datastax/dse-server:5.1.35
+    container_name: dse-node3
+    hostname: dse-node3
+    networks:
+      - cassandra-migration
+    environment:
+      - DS_LICENSE=accept
+      - CLUSTER_NAME=DSE_Cluster
+      - DC=dc1
+      - RACK=rack1
+      - SEEDS=dse-node1
+      - START_RPC=true
+    volumes:
+      - dse-node3-data:/var/lib/cassandra
+    depends_on:
+      dse-node1:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "cqlsh", "-e", "describe keyspaces"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    mem_limit: 2g
+    cpus: 1.0
+
+  # HCD Cluster (Target) - Using Cassandra 4.1 as HCD equivalent
+  hcd-node1:
+    image: cassandra:4.1
+    container_name: hcd-node1
+    hostname: hcd-node1
+    networks:
+      - cassandra-migration
+    ports:
+      - "9043:9042"   # CQL (mapped to different port to avoid conflict)
+      - "7001:7000"   # Inter-node
+      - "7200:7199"   # JMX
+    environment:
+      - CASSANDRA_CLUSTER_NAME=HCD_Cluster
+      - CASSANDRA_DC=datacenter1
+      - CASSANDRA_RACK=rack1
+      - CASSANDRA_SEEDS=hcd-node1
+      - CASSANDRA_ENDPOINT_SNITCH=GossipingPropertyFileSnitch
+      - MAX_HEAP_SIZE=1G
+      - HEAP_NEWSIZE=256M
+    volumes:
+      - hcd-node1-data:/var/lib/cassandra
+    healthcheck:
+      test: ["CMD", "cqlsh", "-e", "describe keyspaces"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    mem_limit: 2g
+    cpus: 1.0
+
+  hcd-node2:
+    image: cassandra:4.1
+    container_name: hcd-node2
+    hostname: hcd-node2
+    networks:
+      - cassandra-migration
+    environment:
+      - CASSANDRA_CLUSTER_NAME=HCD_Cluster
+      - CASSANDRA_DC=datacenter1
+      - CASSANDRA_RACK=rack1
+      - CASSANDRA_SEEDS=hcd-node1
+      - CASSANDRA_ENDPOINT_SNITCH=GossipingPropertyFileSnitch
+      - MAX_HEAP_SIZE=1G
+      - HEAP_NEWSIZE=256M
+    volumes:
+      - hcd-node2-data:/var/lib/cassandra
+    depends_on:
+      hcd-node1:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "cqlsh", "-e", "describe keyspaces"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    mem_limit: 2g
+    cpus: 1.0
+
+  hcd-node3:
+    image: cassandra:4.1
+    container_name: hcd-node3
+    hostname: hcd-node3
+    networks:
+      - cassandra-migration
+    environment:
+      - CASSANDRA_CLUSTER_NAME=HCD_Cluster
+      - CASSANDRA_DC=datacenter1
+      - CASSANDRA_RACK=rack1
+      - CASSANDRA_SEEDS=hcd-node1
+      - CASSANDRA_ENDPOINT_SNITCH=GossipingPropertyFileSnitch
+      - MAX_HEAP_SIZE=1G
+      - HEAP_NEWSIZE=256M
+    volumes:
+      - hcd-node3-data:/var/lib/cassandra
+    depends_on:
+      hcd-node1:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "cqlsh", "-e", "describe keyspaces"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    mem_limit: 2g
+    cpus: 1.0
+
+  # Data Generator (for creating test data)
+  data-generator:
+    image: python:3.11-slim
+    container_name: data-generator
+    networks:
+      - cassandra-migration
+    volumes:
+      - ./scripts:/scripts
+      - ./data:/data
+    working_dir: /scripts
+    command: ["tail", "-f", "/dev/null"]  # Keep container running
+    depends_on:
+      dse-node1:
+        condition: service_healthy
+
+  # Monitoring - Prometheus
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    hostname: prometheus
+    networks:
+      - cassandra-migration
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    mem_limit: 512m
+
+  # Monitoring - Grafana
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    hostname: grafana
+    networks:
+      - cassandra-migration
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    mem_limit: 512m
+
+  # Tools Container (with migration tools pre-installed)
+  migration-tools:
+    build:
+      context: ./tools
+      dockerfile: Dockerfile
+    container_name: migration-tools
+    hostname: migration-tools
+    networks:
+      - cassandra-migration
+    volumes:
+      - ./scripts:/scripts
+      - ./data:/data
+      - ./exports:/exports
+    working_dir: /workspace
+    command: ["tail", "-f", "/dev/null"]  # Keep container running
+    depends_on:
+      - dse-node1
+      - hcd-node1
+    mem_limit: 2g
+    cpus: 1.0
+
+  # ZDM Proxy (Zero Downtime Migration)
+  zdm-proxy:
+    image: datastax/zdm-proxy:2.1.0
+    container_name: zdm-proxy
+    hostname: zdm-proxy
+    networks:
+      - cassandra-migration
+    ports:
+      - "9044:9042"   # CQL proxy port
+      - "14001:14001" # Metrics port
+    volumes:
+      - ./zdm-config:/config
+    command: ["--config", "/config/zdm-config.yml"]
+    depends_on:
+      - dse-node1
+      - hcd-node1
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:14001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    mem_limit: 1g
+    cpus: 0.5
+
+networks:
+  cassandra-migration:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+volumes:
+  dse-node1-data:
+  dse-node2-data:
+  dse-node3-data:
+  hcd-node1-data:
+  hcd-node2-data:
+  hcd-node3-data:
+  prometheus-data:
+  grafana-data:
+
+# NOTE: ZDM Proxy requires x86_64 architecture. On Apple Silicon (ARM64), it runs
+# via Rosetta 2 emulation when Colima is started with the --vz-rosetta flag.
+#
+# To enable Rosetta 2 emulation on Apple Silicon:
+# colima start --arch aarch64 --vm-type=vz --vz-rosetta --cpu 6 --memory 12 --disk 60
+#
+# Performance note: ZDM Proxy runs well under Rosetta 2 emulation with minimal overhead.
+# All exercises (1-5) can be completed on both AMD64 and ARM64 architectures.
+
+# Made with Bob
