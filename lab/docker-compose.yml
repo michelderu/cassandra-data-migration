@@ -8,6 +8,7 @@ services:
   # DSE 5.1 Cluster (Source)
   dse-node1:
     image: datastax/dse-server:5.1.35
+    platform: linux/amd64  # DSE images are x86_64; on Apple Silicon use Colima with --vz-rosetta
     container_name: dse-node1
     hostname: dse-node1
     networks:
@@ -18,72 +19,31 @@ services:
       - "7000:7000"   # Inter-node
       - "7199:7199"   # JMX
     environment:
-      - DS_LICENSE=accept
-      - CLUSTER_NAME=DSE_Cluster
-      - DC=dc1
-      - RACK=rack1
-      - SEEDS=dse-node1
-      - START_RPC=true
+      DS_LICENSE: accept
+      CLUSTER_NAME: DSE_Cluster
+      DC: dc1
+      RACK: Rack1
+      SEEDS: dse-node1
+      START_RPC: "true"
+      JVM_EXTRA_OPTS: "-Xms1G -Xmx1G -Xmn512M"
+      SNITCH: GossipingPropertyFileSnitch
+      LC_ALL: C.UTF-8
+      LANG: C.UTF-8
+    cap_add:
+      - IPC_LOCK
+    ulimits:
+      memlock: -1
+      nofile: 65536
     volumes:
       - dse-node1-data:/var/lib/cassandra
       - ./init-scripts:/docker-entrypoint-initdb.d
+      - .:/workspace
     healthcheck:
-      test: ["CMD", "cqlsh", "-e", "describe keyspaces"]
-      interval: 30s
+      test: ["CMD-SHELL", "cqlsh -e 'describe keyspaces' || exit 1"]
+      interval: 15s
       timeout: 10s
-      retries: 5
-    mem_limit: 2g
-    cpus: 1.0
-
-  dse-node2:
-    image: datastax/dse-server:5.1.35
-    container_name: dse-node2
-    hostname: dse-node2
-    networks:
-      - cassandra-migration
-    environment:
-      - DS_LICENSE=accept
-      - CLUSTER_NAME=DSE_Cluster
-      - DC=dc1
-      - RACK=rack1
-      - SEEDS=dse-node1
-      - START_RPC=true
-    volumes:
-      - dse-node2-data:/var/lib/cassandra
-    depends_on:
-      dse-node1:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "cqlsh", "-e", "describe keyspaces"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-    mem_limit: 2g
-    cpus: 1.0
-
-  dse-node3:
-    image: datastax/dse-server:5.1.35
-    container_name: dse-node3
-    hostname: dse-node3
-    networks:
-      - cassandra-migration
-    environment:
-      - DS_LICENSE=accept
-      - CLUSTER_NAME=DSE_Cluster
-      - DC=dc1
-      - RACK=rack1
-      - SEEDS=dse-node1
-      - START_RPC=true
-    volumes:
-      - dse-node3-data:/var/lib/cassandra
-    depends_on:
-      dse-node1:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "cqlsh", "-e", "describe keyspaces"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
+      retries: 30
+      start_period: 120s
     mem_limit: 2g
     cpus: 1.0
 
@@ -109,64 +69,11 @@ services:
     volumes:
       - hcd-node1-data:/var/lib/cassandra
     healthcheck:
-      test: ["CMD", "cqlsh", "-e", "describe keyspaces"]
-      interval: 30s
+      test: ["CMD-SHELL", "cqlsh -e 'describe keyspaces' || exit 1"]
+      interval: 15s
       timeout: 10s
-      retries: 5
-    mem_limit: 2g
-    cpus: 1.0
-
-  hcd-node2:
-    image: cassandra:4.1
-    container_name: hcd-node2
-    hostname: hcd-node2
-    networks:
-      - cassandra-migration
-    environment:
-      - CASSANDRA_CLUSTER_NAME=HCD_Cluster
-      - CASSANDRA_DC=datacenter1
-      - CASSANDRA_RACK=rack1
-      - CASSANDRA_SEEDS=hcd-node1
-      - CASSANDRA_ENDPOINT_SNITCH=GossipingPropertyFileSnitch
-      - MAX_HEAP_SIZE=1G
-      - HEAP_NEWSIZE=256M
-    volumes:
-      - hcd-node2-data:/var/lib/cassandra
-    depends_on:
-      hcd-node1:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "cqlsh", "-e", "describe keyspaces"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-    mem_limit: 2g
-    cpus: 1.0
-
-  hcd-node3:
-    image: cassandra:4.1
-    container_name: hcd-node3
-    hostname: hcd-node3
-    networks:
-      - cassandra-migration
-    environment:
-      - CASSANDRA_CLUSTER_NAME=HCD_Cluster
-      - CASSANDRA_DC=datacenter1
-      - CASSANDRA_RACK=rack1
-      - CASSANDRA_SEEDS=hcd-node1
-      - CASSANDRA_ENDPOINT_SNITCH=GossipingPropertyFileSnitch
-      - MAX_HEAP_SIZE=1G
-      - HEAP_NEWSIZE=256M
-    volumes:
-      - hcd-node3-data:/var/lib/cassandra
-    depends_on:
-      hcd-node1:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "cqlsh", "-e", "describe keyspaces"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
+      retries: 30
+      start_period: 120s
     mem_limit: 2g
     cpus: 1.0
 
@@ -244,6 +151,7 @@ services:
   # ZDM Proxy (Zero Downtime Migration)
   zdm-proxy:
     image: datastax/zdm-proxy:2.1.0
+    platform: linux/amd64  # ZDM Proxy is x86_64; works via Rosetta 2 on Apple Silicon
     container_name: zdm-proxy
     hostname: zdm-proxy
     networks:
@@ -253,15 +161,19 @@ services:
       - "14001:14001" # Metrics port
     volumes:
       - ./zdm-config:/config
-    command: ["--config", "/config/zdm-config.yml"]
+    environment:
+      - ZDM_CONFIG_FILE=/config/zdm-config.yml
     depends_on:
-      - dse-node1
-      - hcd-node1
+      dse-node1:
+        condition: service_healthy
+      hcd-node1:
+        condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:14001/health"]
-      interval: 30s
+      test: ["CMD-SHELL", "curl -f http://localhost:14001/health || exit 1"]
+      interval: 15s
       timeout: 10s
-      retries: 5
+      retries: 20
+      start_period: 60s
     mem_limit: 1g
     cpus: 0.5
 
@@ -274,11 +186,7 @@ networks:
 
 volumes:
   dse-node1-data:
-  dse-node2-data:
-  dse-node3-data:
   hcd-node1-data:
-  hcd-node2-data:
-  hcd-node3-data:
   prometheus-data:
   grafana-data:
 

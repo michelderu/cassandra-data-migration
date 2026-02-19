@@ -14,6 +14,8 @@
 - DSE cluster with sample data
 - HCD cluster with schema created
 
+**Note:** This exercise assumes you are working from the `lab` directory. If starting fresh, run `cd lab` from the project root.
+
 ## Duration
 
 45-60 minutes

@@ -4,7 +4,7 @@
 CREATE KEYSPACE IF NOT EXISTS training
 WITH replication = {
   'class': 'NetworkTopologyStrategy',
-  'dc1': 3
+  'dc1': 1
 };
 
 -- Users table

@@ -14,6 +14,8 @@
 - Both clusters running with data
 - Monitoring stack (Prometheus/Grafana) running
 
+**Note:** This exercise assumes you are working from the `lab` directory. If starting fresh, run `cd lab` from the project root.
+
 ## Duration
 
 45-60 minutes
@@ -361,7 +363,7 @@ curl http://localhost:9090/api/v1/query?query=zdm_proxy_requests_total | jq '.da
 
 ```bash
 # Create dashboard JSON for import
-cat > lab/monitoring/grafana/dashboards/zdm-migration.json << 'EOF'
+cat > monitoring/grafana/dashboards/zdm-migration.json << 'EOF'
 {
   "dashboard": {
     "title": "ZDM Migration Dashboard",
@@ -459,7 +461,7 @@ exit
 
 ```bash
 # Create alerting rules for Prometheus
-cat > lab/monitoring/prometheus-alerts.yml << 'EOF'
+cat > monitoring/prometheus-alerts.yml << 'EOF'
 groups:
   - name: migration_alerts
     interval: 30s

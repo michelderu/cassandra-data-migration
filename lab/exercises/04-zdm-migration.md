@@ -15,15 +15,23 @@
 - HCD cluster with schema and data
 - ZDM Proxy container running
 
+**Note:** This exercise assumes you are working from the `lab` directory. If starting fresh, run `cd lab` from the project root.
+
 ## Duration
 
 60-90 minutes
 
 ## Overview
 
-This exercise demonstrates using ZDM (Zero Downtime Migration) Proxy to migrate from DSE to HCD without any downtime. The proxy sits between applications and clusters, enabling dual-write and gradual read migration.
+This exercise demonstrates using ZDM (Zero Downtime Migration) Proxy to migrate from DSE to HCD without any downtime. The ZDM methodology follows a 5-phase approach:
 
-## Part 1: ZDM Proxy Configuration
+1. **Phase 1: Proxy Deployment (Origin Only)** - Deploy proxy, route all traffic through Origin
+2. **Phase 2: Enable Dual Writes** - Write to both clusters, read from Origin only
+3. **Phase 3: Backfill Historical Data** - Migrate pre-existing data while dual-writes continue
+4. **Phase 4: Enable Dual Reads** - Read from both clusters, Origin is primary
+5. **Phase 5: Cutover** - Switch to Target as primary, eventually remove proxy
+
+## Phase 1: Proxy Deployment (Origin Only)
 
 ### Step 1: Verify ZDM Proxy Container
 
@@ -42,11 +50,11 @@ docker-compose up -d zdm-proxy
 
 ```bash
 # View current configuration
-cat lab/zdm-config/zdm-config.yml
+cat zdm-config/zdm-config.yml
 
 # The configuration should look like this:
-# origin_contact_points: "dse-node1,dse-node2,dse-node3"
-# target_contact_points: "hcd-node1,hcd-node2,hcd-node3"
+# origin_contact_points: "dse-node1"
+# target_contact_points: "hcd-node1"
 # proxy_listen_port: 9042
 # read_mode: "PRIMARY_ONLY"
 # primary_cluster: "ORIGIN"
@@ -71,11 +79,13 @@ cqlsh zdm-proxy 9042 -e "SELECT COUNT(*) FROM training.users;"
 exit
 ```
 
-## Part 2: Phase 1 - Dual-Write Mode
+## Phase 2: Enable Dual Writes
 
-### Step 4: Enable Dual-Write
+### Step 4: Enable Dual-Write Mode
 
-The ZDM Proxy is already configured for dual-write mode. Let's verify it's working:
+The ZDM Proxy is already configured for dual-write mode. This is the "cutting point" - from this moment forward, all new writes will go to both DSE (Origin) and HCD (Target), while reads continue from DSE only.
+
+**Important:** We enable dual-writes BEFORE migrating historical data. This ensures the Target never falls behind while we backfill old data.
 
 ```bash
 # Access migration-tools container
@@ -99,6 +109,7 @@ SELECT username, email FROM training.users WHERE username = 'zdm_test_user' ALLO
 "
 
 # Both should show the new user
+exit
 ```
 
 ### Step 5: Bulk Write Test
@@ -106,54 +117,20 @@ SELECT username, email FROM training.users WHERE username = 'zdm_test_user' ALLO
 ```bash
 # Still in migration-tools container
 
-# Create test script for bulk writes
-cat > /scripts/test_dual_write.py << 'EOF'
-from cassandra.cluster import Cluster
-import uuid
-from datetime import datetime
-
-# Connect through ZDM Proxy
-cluster = Cluster(['zdm-proxy'], port=9042)
-session = cluster.connect('training')
-
-# Prepare statement
-insert_stmt = session.prepare("""
-    INSERT INTO users (user_id, username, email, status, created_at)
-    VALUES (?, ?, ?, ?, ?)
-""")
-
-print("Inserting 100 test users through ZDM Proxy...")
-
-for i in range(100):
-    session.execute(insert_stmt, (
-        uuid.uuid4(),
-        f'zdm_bulk_user_{i}',
-        f'zdm_bulk_{i}@test.com',
-        'active',
-        datetime.now()
-    ))
-    
-    if (i + 1) % 10 == 0:
-        print(f"  Inserted {i + 1} users...")
-
-print("✓ Bulk insert complete")
-
-cluster.shutdown()
-EOF
-
-# Run the test
+# The test script is provided at /scripts/test_dual_write.py
+# Run the bulk write test
 python3 /scripts/test_dual_write.py
 
 # Verify on both clusters
 echo "=== DSE Count ==="
 cqlsh dse-node1 -e "
-SELECT COUNT(*) FROM training.users WHERE username LIKE 'zdm_bulk_user_%' ALLOW FILTERING;
-"
+SELECT username FROM training.users
+" | grep zdm_bulk | wc -l
 
 echo "=== HCD Count ==="
 cqlsh hcd-node1 -e "
-SELECT COUNT(*) FROM training.users WHERE username LIKE 'zdm_bulk_user_%' ALLOW FILTERING;
-"
+SELECT username FROM training.users
+" | grep zdm_bulk | wc -l
 
 # Exit container
 exit
@@ -162,23 +139,141 @@ exit
 ### Step 6: Monitor ZDM Proxy Metrics
 
 ```bash
-# Check ZDM Proxy metrics
-curl http://localhost:14001/metrics | grep -E "zdm_proxy_(requests|errors)"
+# Check all ZDM Proxy metrics
+curl -s http://localhost:14001/metrics | grep zdm_
 
-# Key metrics to watch:
-# - zdm_proxy_requests_total
-# - zdm_proxy_errors_total
-# - zdm_proxy_origin_requests_total
-# - zdm_proxy_target_requests_total
+# Key metrics to monitor:
 
-# View in Prometheus
+# 1. Request counts by type
+echo "=== Request Counts ==="
+curl -s http://localhost:14001/metrics | grep "zdm_proxy_request_duration_seconds_count"
+# Shows: reads_origin, reads_target, writes
+
+# 2. Failed writes (critical for dual-write validation)
+echo "=== Failed Writes ==="
+curl -s http://localhost:14001/metrics | grep "zdm_proxy_failed_writes_total"
+# Shows: failed_on="both", failed_on="origin", failed_on="target"
+
+# 3. Request latency histograms
+echo "=== Request Latency ==="
+curl -s http://localhost:14001/metrics | grep "zdm_proxy_request_duration_seconds_sum"
+# Calculate average: sum / count
+
+# 4. Origin vs Target request distribution
+echo "=== Origin Requests ==="
+curl -s http://localhost:14001/metrics | grep "zdm_origin_request_duration_seconds_count"
+
+echo "=== Target Requests ==="
+curl -s http://localhost:14001/metrics | grep "zdm_target_request_duration_seconds_count"
+
+# 5. Connection status
+echo "=== Connections ==="
+curl -s http://localhost:14001/metrics | grep "zdm_.*_connections_total"
+
+# 6. In-flight requests
+echo "=== In-Flight Requests ==="
+curl -s http://localhost:14001/metrics | grep "zdm_proxy_inflight_requests_total"
+
+# View in Prometheus (optional)
 # Open browser: http://localhost:9090
-# Query: rate(zdm_proxy_requests_total[5m])
+# Useful queries:
+# - rate(zdm_proxy_request_duration_seconds_count[5m])
+# - zdm_proxy_failed_writes_total
+# - histogram_quantile(0.95, rate(zdm_proxy_request_duration_seconds_bucket[5m]))
 ```
 
-## Part 3: Phase 2 - Read Migration
+**Understanding the Metrics:**
 
-### Step 7: Configure Read Routing
+- `zdm_proxy_request_duration_seconds_count{type="writes"}` - Total write requests through proxy
+- `zdm_origin_request_duration_seconds_count` - Requests sent to Origin (DSE)
+- `zdm_target_request_duration_seconds_count` - Requests sent to Target (HCD)
+- `zdm_proxy_failed_writes_total{failed_on="target"}` - Writes that failed on Target only (expected during initial setup)
+- `zdm_proxy_failed_writes_total{failed_on="both"}` - Critical failures (investigate immediately)
+
+## Phase 3: Backfill Historical Data
+
+### Step 7: Migrate Historical Data
+
+Now that dual-writes are active, we can safely migrate historical data from DSE to HCD. Any data updated during this process will be handled correctly by the dual-write mechanism.
+
+```bash
+# Access migration-tools container
+docker exec -it migration-tools bash
+
+# Export data from DSE
+echo "Exporting historical data from DSE..."
+dsbulk unload \
+  -h dse-node1 \
+  -k training \
+  -t users \
+  -url /data/export/users
+
+dsbulk unload \
+  -h dse-node1 \
+  -k training \
+  -t products \
+  -url /data/export/products
+
+dsbulk unload \
+  -h dse-node1 \
+  -k training \
+  -t orders \
+  -url /data/export/orders
+
+dsbulk unload \
+  -h dse-node1 \
+  -k training \
+  -t user_activity \
+  -url /data/export/user_activity
+
+# Import data to HCD
+echo "Importing historical data to HCD..."
+dsbulk load \
+  -h hcd-node1 \
+  -k training \
+  -t users \
+  -url /data/export/users
+
+dsbulk load \
+  -h hcd-node1 \
+  -k training \
+  -t products \
+  -url /data/export/products
+
+dsbulk load \
+  -h hcd-node1 \
+  -k training \
+  -t orders \
+  -url /data/export/orders
+
+dsbulk load \
+  -h hcd-node1 \
+  -k training \
+  -t user_activity \
+  -url /data/export/user_activity
+
+# Verify data counts match
+echo "=== Verifying backfill ==="
+echo "DSE counts:"
+cqlsh dse-node1 -e "SELECT COUNT(*) FROM training.users;"
+cqlsh dse-node1 -e "SELECT COUNT(*) FROM training.products;"
+cqlsh dse-node1 -e "SELECT COUNT(*) FROM training.orders;"
+cqlsh dse-node1 -e "SELECT COUNT(*) FROM training.user_activity;"
+
+echo "HCD counts:"
+cqlsh hcd-node1 -e "SELECT COUNT(*) FROM training.users;"
+cqlsh hcd-node1 -e "SELECT COUNT(*) FROM training.products;"
+cqlsh hcd-node1 -e "SELECT COUNT(*) FROM training.orders;"
+cqlsh hcd-node1 -e "SELECT COUNT(*) FROM training.user_activity;"
+
+exit
+```
+
+**Key Point:** Because dual-writes are already enabled, any data that gets updated during this backfill process will be correctly synchronized by the ZDM Proxy. This prevents data gaps or inconsistencies.
+
+## Phase 4: Enable Dual Reads
+
+### Step 8: Configure Read Routing
 
 For this lab, we'll simulate read routing by updating the ZDM Proxy configuration. In production, you would do this gradually.
 
@@ -192,213 +287,89 @@ docker exec zdm-proxy cat /config/zdm-config.yml | grep -A 2 "read_mode"
 # This means all reads go to DSE
 ```
 
-### Step 8: Test Read Performance
+### Step 9: Validate Data Consistency
+
+Before enabling dual reads, verify that both clusters have consistent data:
 
 ```bash
 # Access migration-tools container
 docker exec -it migration-tools bash
 
-# Create read performance test
-cat > /scripts/test_read_performance.sh << 'EOF'
-#!/bin/bash
-
-echo "=== Read Performance Test ==="
-
-# Test reads through proxy (currently from DSE)
-echo "Testing reads through ZDM Proxy..."
-START=$(date +%s%N)
-for i in {1..100}; do
-  cqlsh zdm-proxy 9042 -e "SELECT * FROM training.users LIMIT 10;" > /dev/null 2>&1
-done
-END=$(date +%s%N)
-PROXY_TIME=$(( (END - START) / 1000000 ))
-echo "ZDM Proxy (DSE): ${PROXY_TIME}ms for 100 queries"
-
-# Test direct reads from DSE
-echo "Testing direct reads from DSE..."
-START=$(date +%s%N)
-for i in {1..100}; do
-  cqlsh dse-node1 -e "SELECT * FROM training.users LIMIT 10;" > /dev/null 2>&1
-done
-END=$(date +%s%N)
-DSE_TIME=$(( (END - START) / 1000000 ))
-echo "Direct DSE: ${DSE_TIME}ms for 100 queries"
-
-# Test direct reads from HCD
-echo "Testing direct reads from HCD..."
-START=$(date +%s%N)
-for i in {1..100}; do
-  cqlsh hcd-node1 -e "SELECT * FROM training.users LIMIT 10;" > /dev/null 2>&1
-done
-END=$(date +%s%N)
-HCD_TIME=$(( (END - START) / 1000000 ))
-echo "Direct HCD: ${HCD_TIME}ms for 100 queries"
-
-echo ""
-echo "=== Performance Summary ==="
-echo "ZDM Proxy overhead: $(( PROXY_TIME - DSE_TIME ))ms"
-echo "HCD vs DSE: $(( HCD_TIME - DSE_TIME ))ms difference"
-EOF
-
-chmod +x /scripts/test_read_performance.sh
-/scripts/test_read_performance.sh
-
-exit
-```
-
-## Part 4: Phase 3 - Validation
-
-### Step 9: Data Consistency Validation
-
-```bash
-# Access migration-tools container
-docker exec -it migration-tools bash
-
-# Create comprehensive validation script
-cat > /scripts/validate_zdm_migration.py << 'EOF'
-from cassandra.cluster import Cluster
-import sys
-
-def validate_consistency():
-    print("=" * 60)
-    print("ZDM Migration Consistency Validation")
-    print("=" * 60)
-    
-    # Connect to both clusters
-    dse = Cluster(['dse-node1']).connect('training')
-    hcd = Cluster(['hcd-node1']).connect('training')
-    
-    tables = ['users', 'products', 'orders', 'user_activity']
-    all_passed = True
-    
-    for table in tables:
-        print(f"\nValidating table: {table}")
-        
-        # Count validation
-        dse_count = dse.execute(f"SELECT COUNT(*) FROM {table}").one()[0]
-        hcd_count = hcd.execute(f"SELECT COUNT(*) FROM {table}").one()[0]
-        
-        print(f"  DSE count: {dse_count:,}")
-        print(f"  HCD count: {hcd_count:,}")
-        
-        if dse_count == hcd_count:
-            print(f"  Count check: ✓ PASS")
-        else:
-            print(f"  Count check: ✗ FAIL (difference: {abs(dse_count - hcd_count)})")
-            all_passed = False
-            continue
-        
-        # Sample data validation
-        print(f"  Validating sample data...")
-        dse_sample = list(dse.execute(f"SELECT * FROM {table} LIMIT 100"))
-        
-        mismatches = 0
-        for row in dse_sample:
-            # Get primary key (assuming first column is PK for simplicity)
-            pk_col = row._fields[0]
-            pk_value = getattr(row, pk_col)
-            
-            # Query HCD
-            hcd_result = hcd.execute(
-                f"SELECT * FROM {table} WHERE {pk_col} = %s",
-                [pk_value]
-            )
-            
-            hcd_row = hcd_result.one()
-            if hcd_row is None:
-                mismatches += 1
-        
-        if mismatches == 0:
-            print(f"  Sample check: ✓ PASS (100 rows validated)")
-        else:
-            print(f"  Sample check: ✗ FAIL ({mismatches} mismatches)")
-            all_passed = False
-    
-    print("\n" + "=" * 60)
-    if all_passed:
-        print("✓ All validation checks passed!")
-        print("Clusters are consistent and ready for cutover")
-    else:
-        print("✗ Validation failed - investigate discrepancies")
-    print("=" * 60)
-    
-    dse.shutdown()
-    hcd.shutdown()
-    
-    return all_passed
-
-if __name__ == "__main__":
-    success = validate_consistency()
-    sys.exit(0 if success else 1)
-EOF
-
+# Run the validation script
 python3 /scripts/validate_zdm_migration.py
 
 exit
 ```
 
-### Step 10: Application Simulation
+### Step 10: Test Read Performance
 
 ```bash
 # Access migration-tools container
 docker exec -it migration-tools bash
 
-# Create application simulation script
-cat > /scripts/simulate_app_traffic.py << 'EOF'
-from cassandra.cluster import Cluster
-import uuid
-import random
-import time
-from datetime import datetime
-
-# Connect through ZDM Proxy
-cluster = Cluster(['zdm-proxy'], port=9042)
-session = cluster.connect('training')
-
-print("Simulating application traffic through ZDM Proxy...")
-print("Press Ctrl+C to stop")
-print()
-
-try:
-    iteration = 0
-    while True:
-        iteration += 1
-        
-        # Mix of reads and writes
-        operation = random.choice(['read', 'read', 'read', 'write'])
-        
-        if operation == 'read':
-            # Random read
-            result = session.execute("SELECT * FROM users LIMIT 10")
-            print(f"[{iteration}] Read: Retrieved {len(list(result))} users")
-        else:
-            # Random write
-            user_id = uuid.uuid4()
-            session.execute("""
-                INSERT INTO users (user_id, username, email, status, created_at)
-                VALUES (%s, %s, %s, %s, %s)
-            """, (user_id, f'app_user_{iteration}', f'app_{iteration}@test.com', 
-                  'active', datetime.now()))
-            print(f"[{iteration}] Write: Created user app_user_{iteration}")
-        
-        time.sleep(0.5)  # Simulate realistic traffic
-        
-except KeyboardInterrupt:
-    print("\n\nStopping simulation...")
-    print(f"Completed {iteration} operations")
-
-cluster.shutdown()
-EOF
-
-# Run simulation (let it run for 30 seconds, then Ctrl+C)
-timeout 30 python3 /scripts/simulate_app_traffic.py || true
+# Run the read performance test script
+/scripts/test_read_performance.sh
 
 exit
 ```
 
-## Part 5: Monitoring and Metrics
+### Step 11: Application Simulation
 
-### Step 11: Monitor ZDM Proxy
+Simulate realistic application traffic through the ZDM Proxy to test dual-write and dual-read functionality:
+
+```bash
+# Access migration-tools container
+docker exec -it migration-tools bash
+
+# Run the application simulation script (default: 30 seconds)
+python3 /scripts/simulate_app_traffic.py
+
+# Or run with custom parameters:
+# - Run for 60 seconds with 1 second delay between operations
+python3 /scripts/simulate_app_traffic.py --duration 60 --delay 1.0
+
+# - Adjust read/write ratio (80% reads, 20% writes)
+python3 /scripts/simulate_app_traffic.py --read-ratio 0.8
+
+# - Run for 2 minutes with faster operations
+python3 /scripts/simulate_app_traffic.py --duration 120 --delay 0.2
+
+exit
+```
+
+**What the script does:**
+- Connects through ZDM Proxy to simulate real application behavior
+- Performs a mix of read and write operations (default: 75% reads, 25% writes)
+- Uses various query patterns: LIMIT, FILTER, COUNT, INSERT, UPDATE
+- Provides real-time operation logging
+- Displays comprehensive statistics at the end
+
+**Expected output:**
+```
+Simulating application traffic through ZDM Proxy
+Duration: 30 seconds
+Read ratio: 75%
+Write ratio: 25%
+
+[1] Read (LIMIT): Retrieved 10 users
+[2] Write (INSERT): Created user app_user_2_1234
+[3] Read (FILTER): Retrieved 5 active users
+...
+
+Simulation Summary
+Duration: 30.1 seconds
+Total operations: 60
+Operations/second: 1.99
+
+Reads: 45 (75.0%)
+Writes: 15 (25.0%)
+
+✅ All operations completed successfully!
+```
+
+## Phase 5: Cutover to Target
+
+### Step 12: Monitor ZDM Proxy
 
 ```bash
 # View ZDM Proxy metrics
@@ -406,7 +377,7 @@ curl -s http://localhost:14001/metrics | grep -E "zdm_proxy" | head -20
 
 # Check request distribution
 echo "=== Request Distribution ==="
-curl -s http://localhost:14001/metrics | grep "zdm_proxy_origin_requests_total"
+curl -s http://localhost:14001/metrics | grep "zdm_origin_requests_total"
 curl -s http://localhost:14001/metrics | grep "zdm_proxy_target_requests_total"
 
 # Check error rates
@@ -414,7 +385,7 @@ echo "=== Error Rates ==="
 curl -s http://localhost:14001/metrics | grep "zdm_proxy_errors_total"
 ```
 
-### Step 12: Monitor Cluster Health
+### Step 13: Monitor Cluster Health
 
 ```bash
 # Check DSE cluster
@@ -433,24 +404,6 @@ docker exec hcd-node1 nodetool compactionstats
 echo "=== HCD Table Statistics ==="
 docker exec hcd-node1 nodetool tablestats training.users | grep -E "Table:|Number of partitions|Memtable|Compacted"
 ```
-
-### Step 13: Grafana Dashboard
-
-```bash
-# Access Grafana
-# Open browser: http://localhost:3000
-# Login: admin / admin
-
-# Create dashboard for ZDM monitoring:
-# 1. Add Prometheus data source (http://prometheus:9090)
-# 2. Create panels for:
-#    - Request rate: rate(zdm_proxy_requests_total[5m])
-#    - Error rate: rate(zdm_proxy_errors_total[5m])
-#    - Origin requests: rate(zdm_proxy_origin_requests_total[5m])
-#    - Target requests: rate(zdm_proxy_target_requests_total[5m])
-```
-
-## Part 6: Cutover Simulation
 
 ### Step 14: Prepare for Cutover
 
@@ -517,7 +470,7 @@ exit
 docker logs zdm-proxy
 
 # Verify configuration
-cat lab/zdm-config/zdm-config.yml
+cat zdm-config/zdm-config.yml
 
 # Check if clusters are accessible
 docker exec migration-tools ping dse-node1
@@ -559,21 +512,24 @@ docker exec migration-tools ping -c 5 zdm-proxy
 
 You have successfully completed this exercise when:
 
-- ✅ ZDM Proxy is running and accessible
-- ✅ Dual-write mode is working (writes go to both clusters)
+- ✅ ZDM Proxy deployed and routing traffic through Origin
+- ✅ Dual-write mode enabled (writes go to both clusters)
+- ✅ Historical data backfilled from DSE to HCD using DSBulk
 - ✅ Data consistency validated between clusters
+- ✅ Dual-read mode tested successfully
 - ✅ Monitoring metrics are available
-- ✅ Application simulation runs successfully
 - ✅ Ready for production cutover
 
 ## Key Takeaways
 
-1. **Zero Downtime**: ZDM Proxy enables true zero-downtime migration
-2. **Dual-Write**: All writes automatically go to both clusters
-3. **Gradual Migration**: Read traffic can be shifted gradually
-4. **Monitoring**: Comprehensive metrics for tracking migration
-5. **Validation**: Continuous validation ensures data consistency
-6. **Rollback**: Easy to rollback by changing proxy configuration
+1. **5-Phase Approach**: ZDM follows a structured methodology: Proxy Deployment → Dual Writes → Backfill → Dual Reads → Cutover
+2. **Dual-Write First**: Enable dual-writes BEFORE migrating historical data to prevent data gaps
+3. **Safe Backfill**: Historical data migration happens while dual-writes are active, ensuring consistency
+4. **Zero Downtime**: ZDM Proxy enables true zero-downtime migration
+5. **Gradual Migration**: Read traffic can be shifted gradually from Origin to Target
+6. **Monitoring**: Comprehensive metrics for tracking migration progress
+7. **Validation**: Continuous validation ensures data consistency
+8. **Rollback**: Easy to rollback by changing proxy configuration
 
 ## Next Steps
 

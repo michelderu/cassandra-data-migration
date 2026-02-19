@@ -162,6 +162,9 @@ docker exec dse-node1 cqlsh -e "DESC KEYSPACE training;" > /tmp/training_schema.
 
 # Modify for HCD (change datacenter name)
 sed 's/dc1/datacenter1/g' /tmp/training_schema.cql > /tmp/training_schema_hcd.cql
+# Ad fix the read repair change in C* 4.
+sed -i '' -E 's/(dclocal_)?read_repair_chance = [0-9.]*( AND)?//g' /tmp/training_schema_hcd.cql
+sed -i '' '/^[[:space:]]*AND[[:space:]]*$/d' /tmp/training_schema_hcd.cql
 
 # Create on HCD
 docker exec -i hcd-node1 cqlsh < /tmp/training_schema_hcd.cql
