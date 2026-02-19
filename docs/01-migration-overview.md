@@ -156,7 +156,6 @@ Protocol Version: V5
 
 4. **Validation Strategy**
    - Data integrity checks
-   - Performance benchmarking
    - Functional testing
 
 ### Architecture Patterns
@@ -242,7 +241,6 @@ Protocol Version: V5
 - [ ] **Define Success Criteria**
   - [ ] Maximum acceptable downtime (target: 0)
   - [ ] Data consistency requirements
-  - [ ] Performance benchmarks
   - [ ] Rollback conditions
 
 - [ ] **Select Migration Strategy**
@@ -359,5 +357,5 @@ Protocol Version: V5
 **Related Documents:**
 - [Native Tooling Options](02-native-tooling.md)
 - [DSE-Specific Tooling](03-dse-tooling.md)
-- [CDM Approach](04-cdm-approach.md)
-- [ZDM Approach](05-zdm-approach.md)
+- [ZDM Approach](04-zdm-approach.md)
+- [CDM Approach](05-cdm-approach.md)

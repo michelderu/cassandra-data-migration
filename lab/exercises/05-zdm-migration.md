@@ -543,7 +543,7 @@ You have successfully completed this exercise when:
 
 ## Next Steps
 
-Proceed to [Exercise 5: Validation and Monitoring](05-validation-monitoring.md) for comprehensive validation techniques and monitoring setup.
+Proceed to [Exercise 6: Validation and Monitoring](06-validation-monitoring.md) for comprehensive validation techniques and monitoring setup.
 
 ## Clean Up
 
@@ -564,5 +564,5 @@ docker-compose start zdm-proxy
 ---
 
 **Time to Complete:** 60-90 minutes  
-**Difficulty:** Advanced  
-**Next Exercise:** [Validation and Monitoring](05-validation-monitoring.md)
+**Difficulty:** Advanced
+**Next Exercise:** [Validation and Monitoring](06-validation-monitoring.md)

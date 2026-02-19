@@ -331,35 +331,6 @@ for table in users products orders user_activity; do
 done
 ```
 
-### Step 2: CDM vs DSBulk Comparison
-
-```bash
-cat > cdm-logs/performance-comparison.md << 'EOF'
-# Migration Performance Comparison
-
-## DSBulk (Exercise 3)
-- **Method**: Export to CSV → Import from CSV
-- **Steps**: 2 (export + import)
-- **Pros**: Simple, no Spark required, good for small-medium datasets
-- **Cons**: Requires intermediate storage, two-step process
-
-## CDM (Exercise 4)
-- **Method**: Direct cluster-to-cluster migration
-- **Steps**: 1 (direct migration)
-- **Pros**: Single step, built-in validation, Spark parallelism, preserves TTL/writetime
-- **Cons**: Requires Spark, more complex setup, higher resource usage
-
-## Recommendations
-- **Small datasets (< 100GB)**: Use DSBulk for simplicity
-- **Large datasets (> 100GB)**: Use CDM for performance
-- **Need validation**: Use CDM (built-in DiffData)
-- **Simple migrations**: Use DSBulk
-- **Complex transformations**: Use CDM
-EOF
-
-cat cdm-logs/performance-comparison.md
-```
-
 ## Part 7: Advanced Features (Optional)
 
 ### Feature 1: Auto-Correction
@@ -420,31 +391,6 @@ ls -lh cdm-logs/
 
 ```bash
 # Compare final counts
-echo "========================================="
-echo "Final Data Verification"
-echo "========================================="
-
-echo ""
-echo "Source (DSE):"
-docker exec dse-node cqlsh -e "
-SELECT COUNT(*) FROM training.users;
-SELECT COUNT(*) FROM training.products;
-SELECT COUNT(*) FROM training.orders;
-SELECT COUNT(*) FROM training.user_activity;
-"
-
-echo ""
-echo "Target (HCD):"
-docker exec hcd-node cqlsh -e "
-SELECT COUNT(*) FROM training.users;
-SELECT COUNT(*) FROM training.products;
-SELECT COUNT(*) FROM training.orders;
-SELECT COUNT(*) FROM training.user_activity;
-"
-
-# Or use the validation script for comprehensive check
-echo ""
-echo "Running comprehensive validation:"
 docker exec tools-node python3 /scripts/validate_migration.py
 ```
 

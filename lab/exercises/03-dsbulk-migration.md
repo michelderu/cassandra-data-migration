@@ -420,7 +420,6 @@ You have successfully completed this exercise when:
 - ✅ Exported all tables from DSE
 - ✅ Imported all tables to HCD
 - ✅ Row counts match between clusters
-- ✅ Performance benchmarks completed
 - ✅ Validation passed
 
 ## Key Takeaways
@@ -433,7 +432,7 @@ You have successfully completed this exercise when:
 
 ## Next Steps
 
-Proceed to [Exercise 4: ZDM Proxy Migration](04-zdm-migration.md) to learn about zero-downtime migration using ZDM Proxy.
+Proceed to [Exercise 4: Cassandra Data Migrator (CDM)](04-cdm-migration.md) to learn about using CDM for large-scale data migration.
 
 ## Clean Up
 
@@ -456,5 +455,5 @@ TRUNCATE training.user_activity;
 ---
 
 **Time to Complete:** 45-60 minutes  
-**Difficulty:** Intermediate  
-**Next Exercise:** [ZDM Proxy Migration](04-zdm-migration.md)
+**Difficulty:** Intermediate
+**Next Exercise:** [Cassandra Data Migrator (CDM)](04-cdm-migration.md)

@@ -609,11 +609,10 @@ spark.cdm.perfops.batchSize=5
 spark.cdm.perfops.numParts=1000
 ```
 
-### Issue 2: Slow Performance
+### Issue 2: Slow Migration
 
 ```bash
 # Symptoms
-# - Low throughput
 # - Long migration time
 
 # Solutions

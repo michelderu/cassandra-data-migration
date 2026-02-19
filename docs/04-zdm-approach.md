@@ -662,7 +662,7 @@ CPU: 1 core
 Memory: 2 GB
 Network: 100 Mbps
 
-# Scale horizontally for higher throughput
+# Scale horizontally as needed
 # Deploy multiple proxy instances
 # Use load balancer
 ```
@@ -684,7 +684,7 @@ Network: 100 Mbps
 - [ ] Connection count
 - [ ] Memory usage
 - [ ] CPU usage
-- [ ] Network throughput
+- [ ] Network usage
 - [ ] Data consistency validation
 
 ## Troubleshooting
@@ -782,4 +782,4 @@ ZDM Proxy provides a robust solution for zero-downtime migration:
 
 ---
 
-**Next:** [Tool Comparison and Decision Matrix](06-comparison-matrix.md)
+**Next:** [Cassandra Data Migrator (CDM) Approach](05-cdm-approach.md)

@@ -711,4 +711,4 @@ For DSE to HCD migration, DSBulk is the most practical DSE tool, while OpsCenter
 
 ---
 
-**Next:** [Cassandra Data Migrator (CDM) Approach](04-cdm-approach.md)
+**Next:** [Zero Downtime Migration (ZDM) Approach](04-zdm-approach.md)

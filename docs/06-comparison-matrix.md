@@ -21,7 +21,6 @@ Choosing the right migration tool depends on multiple factors including dataset 
 |---------|--------------|----------|------|---------|-----------|-----|
 | **Zero Downtime** | ⚠️ Partial | ❌ No | ❌ No | ⚠️ Partial | ✅ Yes | ⚠️ Partial |
 | **Application Changes** | ❌ No | ❌ No | ❌ No | ❌ No | ❌ No | ❌ No |
-| **Performance** | ⭐⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
 | **Complexity** | ⭐⭐⭐ | ⭐⭐ | ⭐ | ⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ |
 | **Data Validation** | ❌ Manual | ❌ Manual | ❌ Manual | ⚠️ Basic | ✅ Built-in | ✅ Built-in |
 | **Real-time Sync** | ❌ No | ❌ No | ❌ No | ❌ No | ✅ Yes | ❌ No |
@@ -30,17 +29,6 @@ Choosing the right migration tool depends on multiple factors including dataset 
 | **Large Datasets** | ✅ Yes | ✅ Yes | ❌ No | ✅ Yes | ✅ Yes | ✅ Yes |
 | **Infrastructure** | Minimal | Minimal | Minimal | Minimal | Medium | High |
 | **License** | Open | Open | Open | DSE | Open | Open |
-
-### Performance Comparison
-
-| Tool | Small (<100GB) | Medium (100GB-1TB) | Large (1TB-10TB) | Very Large (>10TB) |
-|------|----------------|-------------------|------------------|-------------------|
-| **SSTableLoader** | ⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐ |
-| **Nodetool** | ⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐ |
-| **COPY** | ⭐⭐ | ⭐ | ❌ | ❌ |
-| **DSBulk** | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ |
-| **ZDM Proxy** | ⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ |
-| **CDM** | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
 
 ### Operational Complexity
 
@@ -264,7 +252,7 @@ Phase 3: Cutover
 ```
 
 **Advantages:**
-- ✅ Best performance for large datasets
+- ✅ Suitable for large datasets
 - ✅ True zero downtime
 - ✅ Comprehensive validation
 
@@ -294,7 +282,6 @@ Phase 3: Validation & Cutover
 
 **Advantages:**
 - ✅ Lower infrastructure cost
-- ✅ Good performance
 - ✅ Flexible control
 
 **Considerations:**
@@ -408,7 +395,6 @@ dsbulk load -h hcd-node1 -k myapp -t users -url /export
 **Why:**
 - Simple setup
 - Low cost
-- Sufficient performance
 - Easy to troubleshoot
 
 ### For Medium Datasets (100GB - 1TB)
@@ -442,7 +428,7 @@ Deploy ZDM Proxy
 ```
 
 **Why:**
-- Best performance for large datasets
+- Suitable for large datasets
 - Parallel processing with Spark
 - Zero downtime
 - Comprehensive validation
@@ -508,7 +494,6 @@ Deploy ZDM Proxy
 | No Spark available | ZDM Proxy | DSBulk + ZDM |
 | Need transformation | CDM | Application-level |
 | Minimal cost | DSBulk | SSTableLoader |
-| Fastest migration | CDM | DSBulk |
 | Simplest approach | COPY | DSBulk |
 | Production environment | ZDM Proxy | CDM + ZDM |
 | Development environment | DSBulk | COPY |
