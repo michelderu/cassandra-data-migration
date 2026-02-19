@@ -782,4 +782,4 @@ ZDM Proxy provides a robust solution for zero-downtime migration:
 
 ---
 
-**Next:** [Cassandra Data Migrator (CDM) Approach](05-cdm-approach.md)
+**Next:** [Tool Comparison and Decision Matrix](06-comparison-matrix.md)

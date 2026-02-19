@@ -1,7 +1,7 @@
 # ZDM Proxy Configuration for Lab Environment
 
 # Origin cluster (DSE 5.1)
-origin_contact_points: "dse-node1"
+origin_contact_points: "dse-node"
 origin_port: 9042
 origin_username: "cassandra"
 origin_password: "cassandra"
@@ -10,7 +10,7 @@ origin_connection_timeout_ms: 5000
 origin_request_timeout_ms: 12000
 
 # Target cluster (HCD)
-target_contact_points: "hcd-node1"
+target_contact_points: "hcd-node"
 target_port: 9042
 target_username: "cassandra"
 target_password: "cassandra"

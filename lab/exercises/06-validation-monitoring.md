@@ -1,4 +1,4 @@
-# Exercise 5: Validation and Monitoring
+# Exercise 6: Validation and Monitoring
 
 ## Objectives
 
@@ -10,7 +10,7 @@
 
 ## Prerequisites
 
-- Completed Exercises 1-4
+- Completed Exercises 1-5
 - Both clusters running with data
 - Monitoring stack (Prometheus/Grafana) running
 
@@ -51,8 +51,8 @@ for TABLE in "${TABLES[@]}"; do
   echo "Table: $KEYSPACE.$TABLE"
   
   # Get counts from both clusters
-  DSE_COUNT=$(cqlsh dse-node1 -e "SELECT COUNT(*) FROM $KEYSPACE.$TABLE;" 2>/dev/null | grep -oP '\d+' | head -1)
-  HCD_COUNT=$(cqlsh hcd-node1 -e "SELECT COUNT(*) FROM $KEYSPACE.$TABLE;" 2>/dev/null | grep -oP '\d+' | head -1)
+  DSE_COUNT=$(cqlsh dse-node -e "SELECT COUNT(*) FROM $KEYSPACE.$TABLE;" 2>/dev/null | grep -oP '\d+' | head -1)
+  HCD_COUNT=$(cqlsh hcd-node -e "SELECT COUNT(*) FROM $KEYSPACE.$TABLE;" 2>/dev/null | grep -oP '\d+' | head -1)
   
   echo "  DSE: $DSE_COUNT rows"
   echo "  HCD: $HCD_COUNT rows"
@@ -102,8 +102,8 @@ def validate_table_sample(keyspace, table, sample_size=100):
     print(f"\nValidating {keyspace}.{table} (sample size: {sample_size})")
     
     # Connect to both clusters
-    dse = Cluster(['dse-node1']).connect(keyspace)
-    hcd = Cluster(['hcd-node1']).connect(keyspace)
+    dse = Cluster(['dse-node']).connect(keyspace)
+    hcd = Cluster(['hcd-node']).connect(keyspace)
     
     # Get sample from DSE
     dse_rows = list(dse.execute(f"SELECT * FROM {table} LIMIT {sample_size}"))
@@ -196,8 +196,8 @@ echo ""
 
 # Export schemas
 echo "Exporting schemas..."
-cqlsh dse-node1 -e "DESC KEYSPACE $KEYSPACE" > /tmp/dse_schema.cql 2>/dev/null
-cqlsh hcd-node1 -e "DESC KEYSPACE $KEYSPACE" > /tmp/hcd_schema.cql 2>/dev/null
+cqlsh dse-node -e "DESC KEYSPACE $KEYSPACE" > /tmp/dse_schema.cql 2>/dev/null
+cqlsh hcd-node -e "DESC KEYSPACE $KEYSPACE" > /tmp/hcd_schema.cql 2>/dev/null
 
 # Normalize schemas (remove datacenter-specific settings)
 sed 's/dc1/datacenter1/g' /tmp/dse_schema.cql | \
@@ -222,11 +222,11 @@ fi
 
 # List tables
 echo "Tables in DSE:"
-cqlsh dse-node1 -e "DESC TABLES" 2>/dev/null | grep training
+cqlsh dse-node -e "DESC TABLES" 2>/dev/null | grep training
 
 echo ""
 echo "Tables in HCD:"
-cqlsh hcd-node1 -e "DESC TABLES" 2>/dev/null | grep training
+cqlsh hcd-node -e "DESC TABLES" 2>/dev/null | grep training
 
 echo ""
 echo "=========================================="
@@ -258,29 +258,29 @@ echo "=========================================="
 echo ""
 echo "=== DSE Cluster ==="
 echo "Status:"
-docker exec dse-node1 nodetool status 2>/dev/null | grep -E "^(UN|DN)"
+docker exec dse-node nodetool status 2>/dev/null | grep -E "^(UN|DN)"
 
 echo ""
 echo "Info:"
-docker exec dse-node1 nodetool info 2>/dev/null | grep -E "Load|Heap|Uptime"
+docker exec dse-node nodetool info 2>/dev/null | grep -E "Load|Heap|Uptime"
 
 echo ""
 echo "Thread Pools:"
-docker exec dse-node1 nodetool tpstats 2>/dev/null | grep -E "Pool Name|ReadStage|MutationStage" | head -4
+docker exec dse-node nodetool tpstats 2>/dev/null | grep -E "Pool Name|ReadStage|MutationStage" | head -4
 
 # HCD Cluster
 echo ""
 echo "=== HCD Cluster ==="
 echo "Status:"
-docker exec hcd-node1 nodetool status 2>/dev/null | grep -E "^(UN|DN)"
+docker exec hcd-node nodetool status 2>/dev/null | grep -E "^(UN|DN)"
 
 echo ""
 echo "Info:"
-docker exec hcd-node1 nodetool info 2>/dev/null | grep -E "Load|Heap|Uptime"
+docker exec hcd-node nodetool info 2>/dev/null | grep -E "Load|Heap|Uptime"
 
 echo ""
 echo "Thread Pools:"
-docker exec hcd-node1 nodetool tpstats 2>/dev/null | grep -E "Pool Name|ReadStage|MutationStage" | head -4
+docker exec hcd-node nodetool tpstats 2>/dev/null | grep -E "Pool Name|ReadStage|MutationStage" | head -4
 
 echo ""
 echo "=========================================="
@@ -307,13 +307,13 @@ echo "Collecting performance metrics..."
 
 # DSE Metrics
 echo "=== DSE Metrics ===" > $OUTPUT_DIR/dse_metrics_$TIMESTAMP.txt
-docker exec dse-node1 nodetool tablestats training >> $OUTPUT_DIR/dse_metrics_$TIMESTAMP.txt 2>&1
-docker exec dse-node1 nodetool proxyhistograms >> $OUTPUT_DIR/dse_metrics_$TIMESTAMP.txt 2>&1
+docker exec dse-node nodetool tablestats training >> $OUTPUT_DIR/dse_metrics_$TIMESTAMP.txt 2>&1
+docker exec dse-node nodetool proxyhistograms >> $OUTPUT_DIR/dse_metrics_$TIMESTAMP.txt 2>&1
 
 # HCD Metrics
 echo "=== HCD Metrics ===" > $OUTPUT_DIR/hcd_metrics_$TIMESTAMP.txt
-docker exec hcd-node1 nodetool tablestats training >> $OUTPUT_DIR/hcd_metrics_$TIMESTAMP.txt 2>&1
-docker exec hcd-node1 nodetool proxyhistograms >> $OUTPUT_DIR/hcd_metrics_$TIMESTAMP.txt 2>&1
+docker exec hcd-node nodetool tablestats training >> $OUTPUT_DIR/hcd_metrics_$TIMESTAMP.txt 2>&1
+docker exec hcd-node nodetool proxyhistograms >> $OUTPUT_DIR/hcd_metrics_$TIMESTAMP.txt 2>&1
 
 echo "Metrics saved to $OUTPUT_DIR/"
 ls -lh $OUTPUT_DIR/*$TIMESTAMP*
@@ -337,75 +337,68 @@ curl http://localhost:9090/api/v1/targets | jq '.data.activeTargets[] | {job: .l
 curl http://localhost:9090/api/v1/query?query=zdm_proxy_requests_total | jq '.data.result'
 ```
 
-### Step 7: Create Grafana Dashboard
+### Step 7: Access Pre-configured Grafana Dashboards
+
+The lab environment includes three pre-configured Grafana dashboards from the [ZDM Proxy Automation repository](https://github.com/datastax/zdm-proxy-automation/tree/main/grafana-dashboards):
+
+1. **ZDM Proxy Dashboard** - Main monitoring dashboard for ZDM operations
+2. **ZDM Go Runtime Metrics** - Go runtime metrics for the proxy
+3. **Node Exporter Full** - System-level metrics (requires node-exporter)
 
 ```bash
 # Access Grafana: http://localhost:3000
 # Login: admin / admin
 
-# Create dashboard with these panels:
+# Navigate to: Dashboards → ZDM Migration folder
 
-# Panel 1: Request Rate
-# Query: rate(zdm_proxy_requests_total[5m])
+# The following dashboards are automatically provisioned:
+# - ZDM Proxy Dashboard v1
+# - ZDM Go Runtime Metrics v1
+# - Node Exporter Full
 
-# Panel 2: Error Rate
-# Query: rate(zdm_proxy_errors_total[5m])
-
-# Panel 3: Origin vs Target Requests
-# Query 1: rate(zdm_proxy_origin_requests_total[5m])
-# Query 2: rate(zdm_proxy_target_requests_total[5m])
-
-# Panel 4: Latency (p99)
-# Query: histogram_quantile(0.99, rate(zdm_proxy_requests_duration_seconds_bucket[5m]))
+# Key metrics to monitor:
+# - Request rates and latencies
+# - Read/write routing (Origin vs Target)
+# - Error rates and types
+# - Connection pool statistics
+# - Dual write performance
+# - Memory and CPU usage
 ```
 
-### Step 8: Export Grafana Dashboard
+**Dashboard Features:**
+
+**ZDM Proxy Dashboard** monitors:
+- Total request rate
+- Read vs Write operations
+- Origin (DSE) vs Target (HCD) routing
+- Error rates by type
+- Latency percentiles (p50, p95, p99)
+- Async read performance
+- Connection pool health
+
+**ZDM Go Runtime Metrics** tracks:
+- Memory usage and GC statistics
+- Goroutine counts
+- Heap allocations
+- GC pause times
+- CPU usage
+
+For more details, see [`../monitoring/README.md`](../monitoring/README.md).
+
+### Step 8: Verify Dashboard Data
 
 ```bash
-# Create dashboard JSON for import
-cat > monitoring/grafana/dashboards/zdm-migration.json << 'EOF'
-{
-  "dashboard": {
-    "title": "ZDM Migration Dashboard",
-    "panels": [
-      {
-        "title": "Request Rate",
-        "targets": [
-          {
-            "expr": "rate(zdm_proxy_requests_total[5m])"
-          }
-        ],
-        "type": "graph"
-      },
-      {
-        "title": "Error Rate",
-        "targets": [
-          {
-            "expr": "rate(zdm_proxy_errors_total[5m])"
-          }
-        ],
-        "type": "graph"
-      },
-      {
-        "title": "Cluster Distribution",
-        "targets": [
-          {
-            "expr": "rate(zdm_proxy_origin_requests_total[5m])",
-            "legendFormat": "Origin (DSE)"
-          },
-          {
-            "expr": "rate(zdm_proxy_target_requests_total[5m])",
-            "legendFormat": "Target (HCD)"
-          }
-        ],
-        "type": "graph"
-      }
-    ]
-  }
-}
-EOF
+# Check that dashboards are receiving data
+# In Grafana UI, verify:
+# 1. Prometheus datasource is connected (green indicator)
+# 2. Panels show data (not "No data")
+# 3. Time range is appropriate (Last 15 minutes)
 
-echo "Dashboard configuration created"
+# If no data appears, check ZDM Proxy metrics endpoint:
+curl http://localhost:14001/metrics | grep zdm_proxy
+
+# Verify Prometheus is scraping:
+curl http://localhost:9090/api/v1/targets | jq '.data.activeTargets[] | select(.labels.job=="zdm-proxy")'
 ```
 
 ## Part 4: Automated Validation
@@ -529,10 +522,10 @@ Generated: $(date)
 ========================================
 
 DSE Cluster:
-$(docker exec dse-node1 nodetool status 2>/dev/null)
+$(docker exec dse-node nodetool status 2>/dev/null)
 
 HCD Cluster:
-$(docker exec hcd-node1 nodetool status 2>/dev/null)
+$(docker exec hcd-node nodetool status 2>/dev/null)
 
 2. DATA VALIDATION
 ========================================
@@ -544,10 +537,10 @@ $(bash /scripts/validate_row_counts.sh 2>&1)
 ========================================
 
 DSE Performance:
-$(docker exec dse-node1 nodetool tablestats training 2>/dev/null | grep -A 5 "Table: users")
+$(docker exec dse-node nodetool tablestats training 2>/dev/null | grep -A 5 "Table: users")
 
 HCD Performance:
-$(docker exec hcd-node1 nodetool tablestats training 2>/dev/null | grep -A 5 "Table: users")
+$(docker exec hcd-node nodetool tablestats training 2>/dev/null | grep -A 5 "Table: users")
 
 4. ZDM PROXY METRICS
 ========================================
@@ -584,8 +577,8 @@ exit
 
 ```bash
 # Check for replication lag
-docker exec dse-node1 nodetool repair training
-docker exec hcd-node1 nodetool repair training
+docker exec dse-node nodetool repair training
+docker exec hcd-node nodetool repair training
 
 # Re-run validation
 docker exec migration-tools /scripts/validate_row_counts.sh

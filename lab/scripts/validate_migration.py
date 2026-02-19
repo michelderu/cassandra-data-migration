@@ -11,12 +11,12 @@ TABLE_PRIMARY_KEYS = {
 
 def validate_consistency():
     print("=" * 60)
-    print("ZDM Migration Consistency Validation")
+    print("Migration Consistency Validation")
     print("=" * 60)
     
     # Connect to both clusters
-    dse = Cluster(['dse-node1']).connect('training')
-    hcd = Cluster(['hcd-node1']).connect('training')
+    dse = Cluster(['dse-node']).connect('training')
+    hcd = Cluster(['hcd-node']).connect('training')
     
     tables = ['users', 'products', 'orders', 'user_activity']
     all_passed = True

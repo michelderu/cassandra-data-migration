@@ -4,8 +4,8 @@
 
 This lab environment provides a complete setup for practicing DSE 5.1 to HCD migration with zero downtime. It includes:
 
-- **DSE 5.1 Cluster** (3 nodes) - Source cluster
-- **HCD Cluster** (3 nodes) - Target cluster using Cassandra 4.1
+- **DSE 5.1 Cluster** (1 node) - Source cluster
+- **HCD Cluster** (1 node) - Target cluster using Cassandra 4.1
 - **ZDM Proxy** - For zero-downtime migration
 - **Migration Tools** - Pre-configured container with all tools
 - **Monitoring** - Prometheus and Grafana for observability
@@ -63,8 +63,8 @@ cd lab
 docker-compose up -d
 
 # This will start:
-# - 3 DSE nodes
-# - 3 HCD nodes
+# - 1 DSE node
+# - 1 HCD node
 # - ZDM Proxy
 # - Monitoring stack
 # - Tools container
@@ -80,21 +80,21 @@ docker-compose ps
 watch -n 5 'docker-compose ps'
 
 # Check DSE cluster status
-docker exec dse-node1 nodetool status
+docker exec dse-node nodetool status
 
 # Check HCD cluster status
-docker exec hcd-node1 nodetool status
+docker exec hcd-node nodetool status
 ```
 
 ### 3. Verify Connectivity
 
 ```bash
 # Connect to DSE
-docker exec -it dse-node1 cqlsh
+docker exec -it dse-node cqlsh
 # Should see: Connected to DSE_Cluster
 
 # Connect to HCD
-docker exec -it hcd-node1 cqlsh
+docker exec -it hcd-node cqlsh
 # Should see: Connected to HCD_Cluster
 
 # Exit cqlsh
@@ -110,10 +110,10 @@ exit
 │                                                          │
 │  ┌────────────────────────────────────────────────┐    │
 │  │         DSE 5.1 Cluster (Source)               │    │
-│  │  ┌──────────┐ ┌──────────┐ ┌──────────┐      │    │
-│  │  │dse-node1 │ │dse-node2 │ │dse-node3 │      │    │
-│  │  │  :9042   │ │          │ │          │      │    │
-│  │  └──────────┘ └──────────┘ └──────────┘      │    │
+│  │  ┌──────────┐                                  │    │
+│  │  │dse-node  │                                  │    │
+│  │  │  :9042   │                                  │    │
+│  │  └──────────┘                                  │    │
 │  └────────────────────────────────────────────────┘    │
 │                          │                              │
 │                          │                              │
@@ -129,10 +129,10 @@ exit
 │                          │                              │
 │  ┌────────────────────────────────────────────────┐    │
 │  │         HCD Cluster (Target)                   │    │
-│  │  ┌──────────┐ ┌──────────┐ ┌──────────┐      │    │
-│  │  │hcd-node1 │ │hcd-node2 │ │hcd-node3 │      │    │
-│  │  │  :9043   │ │          │ │          │      │    │
-│  │  └──────────┘ └──────────┘ └──────────┘      │    │
+│  │  ┌──────────┐                                  │    │
+│  │  │hcd-node  │                                  │    │
+│  │  │  :9043   │                                  │    │
+│  │  └──────────┘                                  │    │
 │  └────────────────────────────────────────────────┘    │
 │                                                          │
 │  ┌────────────────────────────────────────────────┐    │
@@ -164,10 +164,10 @@ exit
 
 ```bash
 # DSE Cluster
-docker exec -it dse-node1 cqlsh
+docker exec -it dse-node cqlsh
 
 # HCD Cluster
-docker exec -it hcd-node1 cqlsh
+docker exec -it hcd-node cqlsh
 
 # Via ZDM Proxy (after configuration)
 docker exec -it migration-tools cqlsh zdm-proxy 9042
@@ -184,11 +184,19 @@ cqlsh localhost 9044  # ZDM Proxy
 # Prometheus
 open http://localhost:9090
 
-# Grafana
+# Grafana (with pre-configured ZDM dashboards)
 open http://localhost:3000
 # Username: admin
 # Password: admin
+# Navigate to: Dashboards → ZDM Migration folder
 ```
+
+**Pre-configured Grafana Dashboards:**
+- **ZDM Proxy Dashboard** - Monitor request rates, latencies, routing, and errors
+- **ZDM Go Runtime Metrics** - Track memory, GC, and goroutine statistics
+- **Node Exporter Full** - System-level metrics (requires node-exporter)
+
+See [`monitoring/README.md`](monitoring/README.md) for detailed dashboard documentation.
 
 ### Tools Container
 
@@ -224,12 +232,19 @@ The lab includes several hands-on exercises:
    - Import to HCD
    - Validate results
 
-4. **[Exercise 4: ZDM Proxy Migration](exercises/04-zdm-migration.md)**
+4. **[Exercise 4: Cassandra Data Migrator (CDM)](exercises/04-cdm-migration.md)** ⭐ NEW
+   - Use pre-configured Spark with CDM
+   - Perform cluster-to-cluster migration
+   - Validate data with DiffData
+   - Compare with DSBulk performance
+   - Explore advanced features
+
+5. **[Exercise 5: ZDM Proxy Migration](exercises/05-zdm-migration.md)**
    - Configure ZDM proxy
    - Enable dual-write
    - Gradual cutover
 
-5. **[Exercise 5: Validation and Monitoring](exercises/05-validation-monitoring.md)**
+6. **[Exercise 6: Validation and Monitoring](exercises/06-validation-monitoring.md)**
    - Data consistency checks
    - Performance comparison
    - Monitoring setup
@@ -240,20 +255,20 @@ The lab includes several hands-on exercises:
 
 ```bash
 # Check cluster status
-docker exec dse-node1 nodetool status
-docker exec hcd-node1 nodetool status
+docker exec dse-node nodetool status
+docker exec hcd-node nodetool status
 
 # View cluster info
-docker exec dse-node1 nodetool info
-docker exec hcd-node1 nodetool info
+docker exec dse-node nodetool info
+docker exec hcd-node nodetool info
 
 # Check compaction
-docker exec dse-node1 nodetool compactionstats
-docker exec hcd-node1 nodetool compactionstats
+docker exec dse-node nodetool compactionstats
+docker exec hcd-node nodetool compactionstats
 
 # View logs
-docker logs dse-node1
-docker logs hcd-node1
+docker logs dse-node
+docker logs hcd-node
 docker logs zdm-proxy
 ```
 
@@ -261,16 +276,16 @@ docker logs zdm-proxy
 
 ```bash
 # Create snapshot
-docker exec dse-node1 nodetool snapshot myapp
+docker exec dse-node nodetool snapshot myapp
 
 # List snapshots
-docker exec dse-node1 nodetool listsnapshots
+docker exec dse-node nodetool listsnapshots
 
 # Clear snapshot
-docker exec dse-node1 nodetool clearsnapshot -t snapshot_name
+docker exec dse-node nodetool clearsnapshot -t snapshot_name
 
 # Repair
-docker exec dse-node1 nodetool repair myapp
+docker exec dse-node nodetool repair myapp
 ```
 
 ### Container Management
@@ -319,19 +334,18 @@ docker network ls
 docker network inspect lab_cassandra-migration
 
 # Check if nodes can communicate
-docker exec dse-node1 ping dse-node2
-docker exec hcd-node1 ping hcd-node2
+# (Single node setup - no inter-node communication needed)
 
 # Restart cluster
-docker-compose restart dse-node1 dse-node2 dse-node3
+docker-compose restart dse-node hcd-node
 ```
 
 ### Connection Issues
 
 ```bash
 # Verify ports are listening
-docker exec dse-node1 netstat -tlnp | grep 9042
-docker exec hcd-node1 netstat -tlnp | grep 9042
+docker exec dse-node netstat -tlnp | grep 9042
+docker exec hcd-node netstat -tlnp | grep 9042
 
 # Check firewall (host machine)
 # Ensure ports are not blocked

@@ -31,13 +31,13 @@ docker-compose up -d
 
 # Expected output:
 # Creating network "lab_cassandra-migration" ... done
-# Creating dse-node1 ... done
-# Creating hcd-node1 ... done
+# Creating dse-node ... done
+# Creating hcd-node ... done
 # Creating zdm-proxy ... done
 # ...
 ```
 
-**Wait Time:** 3-5 minutes for all services to start
+**Wait Time:** 3-5 minutes for all services to start (and migration-tools to build)
 
 ### Step 2: Monitor Startup Progress
 
@@ -49,15 +49,15 @@ watch -n 5 'docker-compose ps'
 # Press Ctrl+C to exit watch
 
 # Alternative: Check specific service
-docker-compose ps dse-node1
-docker-compose ps hcd-node1
+docker-compose ps dse-node
+docker-compose ps hcd-node
 ```
 
 ### Step 3: Verify DSE Cluster
 
 ```bash
 # Check DSE cluster status
-docker exec dse-node1 nodetool status
+docker exec dse-node nodetool status
 
 # Expected output:
 # Datacenter: dc1
@@ -66,20 +66,18 @@ docker exec dse-node1 nodetool status
 # |/ State=Normal/Leaving/Joining/Moving
 # --  Address     Load       Tokens  Owns    Host ID                               Rack
 # UN  172.20.0.2  X.XX KiB   256     XX.X%   xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx  rack1
-# UN  172.20.0.3  X.XX KiB   256     XX.X%   xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx  rack1
-# UN  172.20.0.4  X.XX KiB   256     XX.X%   xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx  rack1
 ```
 
 **Validation Checklist:**
-- [ ] All 3 nodes show status "UN" (Up/Normal)
-- [ ] Each node has 256 tokens
+- [ ] Node shows status "UN" (Up/Normal)
+- [ ] Node has 256 tokens
 - [ ] Load is distributed across nodes
 
 ### Step 4: Verify HCD Cluster
 
 ```bash
 # Check HCD cluster status
-docker exec hcd-node1 nodetool status
+docker exec hcd-node nodetool status
 
 # Expected output:
 # Datacenter: datacenter1
@@ -88,24 +86,22 @@ docker exec hcd-node1 nodetool status
 # |/ State=Normal/Leaving/Joining/Moving
 # --  Address     Load       Tokens  Owns    Host ID                               Rack
 # UN  172.20.0.5  X.XX KiB   256     XX.X%   xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx  rack1
-# UN  172.20.0.6  X.XX KiB   256     XX.X%   xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx  rack1
-# UN  172.20.0.7  X.XX KiB   256     XX.X%   xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx  rack1
 ```
 
 **Validation Checklist:**
-- [ ] All 3 nodes show status "UN" (Up/Normal)
-- [ ] Each node has 256 tokens
+- [ ] Node shows status "UN" (Up/Normal)
+- [ ] Node has 256 tokens
 - [ ] Datacenter name is "datacenter1"
 
 ### Step 5: Test CQL Connectivity
 
 ```bash
 # Connect to DSE
-docker exec -it dse-node1 cqlsh
+docker exec -it dse-node cqlsh
 
 # You should see:
 # Connected to DSE_Cluster at 127.0.0.1:9042.
-# [cqlsh 5.0.1 | Cassandra 3.11.x | DSE 5.1.35 | CQL spec 3.4.4 | Native protocol v4]
+# [cqlsh 5.0.1 | DSE 5.1.35 | CQL spec 3.4.4 | DSE protocol v1]
 
 # Test basic query
 cqlsh> SELECT cluster_name, release_version FROM system.local;
@@ -116,11 +112,11 @@ cqlsh> exit
 
 ```bash
 # Connect to HCD
-docker exec -it hcd-node1 cqlsh
+docker exec -it hcd-node cqlsh
 
 # You should see:
 # Connected to HCD_Cluster at 127.0.0.1:9042.
-# [cqlsh 6.x.x | Cassandra 4.1.x | CQL spec 3.4.5 | Native protocol v5]
+# [cqlsh 6.1.0 | Cassandra 4.1.10 | CQL spec 3.4.6 | Native protocol v5]
 
 # Test basic query
 cqlsh> SELECT cluster_name, release_version FROM system.local;
@@ -138,10 +134,10 @@ cqlsh> exit
 
 ```bash
 # Create schema using init script
-docker exec -i dse-node1 cqlsh < init-scripts/01-create-schema.cql
+docker exec -i dse-node cqlsh < init-scripts/01-create-schema.cql
 
 # Verify keyspace creation
-docker exec dse-node1 cqlsh -e "DESC KEYSPACE training;"
+docker exec dse-node cqlsh -e "DESC KEYSPACE training;"
 
 # Expected output shows:
 # - Keyspace with NetworkTopologyStrategy
@@ -158,7 +154,7 @@ docker exec dse-node1 cqlsh -e "DESC KEYSPACE training;"
 
 ```bash
 # Export schema from DSE
-docker exec dse-node1 cqlsh -e "DESC KEYSPACE training;" > /tmp/training_schema.cql
+docker exec dse-node cqlsh -e "DESC KEYSPACE training;" > /tmp/training_schema.cql
 
 # Modify for HCD (change datacenter name)
 sed 's/dc1/datacenter1/g' /tmp/training_schema.cql > /tmp/training_schema_hcd.cql
@@ -167,10 +163,10 @@ sed -i '' -E 's/(dclocal_)?read_repair_chance = [0-9.]*( AND)?//g' /tmp/training
 sed -i '' '/^[[:space:]]*AND[[:space:]]*$/d' /tmp/training_schema_hcd.cql
 
 # Create on HCD
-docker exec -i hcd-node1 cqlsh < /tmp/training_schema_hcd.cql
+docker exec -i hcd-node cqlsh < /tmp/training_schema_hcd.cql
 
 # Verify
-docker exec hcd-node1 cqlsh -e "DESC KEYSPACE training;"
+docker exec hcd-node cqlsh -e "DESC KEYSPACE training;"
 ```
 
 **Validation Checklist:**
@@ -189,10 +185,10 @@ pip install cassandra-driver
 
 # Run data generator
 cd /scripts
-python3 generate_data.py dse-node1
+python3 generate_data.py dse-node
 
 # Expected output:
-# Connecting to dse-node1:9042...
+# Connecting to dse-node:9042...
 # Connected successfully!
 # Generating 1000 users...
 #   Generated 100 users...
@@ -229,21 +225,21 @@ exit
 
 ```bash
 # Check row counts
-docker exec dse-node1 cqlsh -e "
+docker exec dse-node cqlsh -e "
 SELECT COUNT(*) FROM training.users;
 SELECT COUNT(*) FROM training.products;
 SELECT COUNT(*) FROM training.orders;
-SELECT COUNT(*) FROM training.user_activity;
+SELECT COUNT(*) FROM training.user_activity
 "
 
 # Sample some data
-docker exec dse-node1 cqlsh -e "
-SELECT * FROM training.users LIMIT 5;
+docker exec dse-node cqlsh -e "
+SELECT * FROM training.users LIMIT 5
 "
 
 # Test queries
-docker exec dse-node1 cqlsh -e "
-SELECT username, email, status FROM training.users WHERE status = 'active' LIMIT 10 ALLOW FILTERING;
+docker exec dse-node cqlsh -e "
+SELECT username, email, status FROM training.users WHERE status = 'active' LIMIT 10 ALLOW FILTERING
 "
 ```
 
@@ -287,10 +283,10 @@ which dsbulk
 python3 --version
 
 # Test connectivity to DSE
-cqlsh dse-node1 -e "SELECT cluster_name FROM system.local;"
+cqlsh dse-node -e "SELECT cluster_name FROM system.local"
 
 # Test connectivity to HCD
-cqlsh hcd-node1 -e "SELECT cluster_name FROM system.local;"
+cqlsh hcd-node -e "SELECT cluster_name FROM system.local"
 
 # Exit
 exit
@@ -310,19 +306,19 @@ Run these commands to verify everything is working:
 docker-compose ps | grep "Up"
 
 # 2. DSE cluster healthy
-docker exec dse-node1 nodetool status | grep "UN" | wc -l
-# Should output: 3
+docker exec dse-node nodetool status | grep "UN" | wc -l
+# Should output: 1
 
 # 3. HCD cluster healthy
-docker exec hcd-node1 nodetool status | grep "UN" | wc -l
-# Should output: 3
+docker exec hcd-node nodetool status | grep "UN" | wc -l
+# Should output: 1
 
 # 4. Data exists on DSE
-docker exec dse-node1 cqlsh -e "SELECT COUNT(*) FROM training.users;" | grep -oP '\d+'
+docker exec dse-node cqlsh -e "SELECT COUNT(*) FROM training.users;" | grep -oP '\d+'
 # Should output: 1000
 
 # 5. Schema exists on HCD
-docker exec hcd-node1 cqlsh -e "DESC KEYSPACE training;" | grep "CREATE TABLE"
+docker exec hcd-node cqlsh -e "DESC KEYSPACE training;" | grep "CREATE TABLE"
 # Should show 4 tables
 ```
 
@@ -335,40 +331,40 @@ docker exec hcd-node1 cqlsh -e "DESC KEYSPACE training;" | grep "CREATE TABLE"
 docker system df
 
 # Check logs
-docker-compose logs dse-node1
+docker-compose logs dse-node
 
 # Restart specific service
-docker-compose restart dse-node1
+docker-compose restart dse-node
 ```
 
 ### Issue: Cluster not forming
 
 ```bash
 # Check network connectivity
-docker exec dse-node1 ping dse-node2
+# (Single node setup - no inter-node communication needed)
 
 # Check Cassandra logs
-docker exec dse-node1 tail -f /var/log/cassandra/system.log
+docker exec dse-node tail -f /var/log/cassandra/system.log
 ```
 
 ### Issue: Can't connect with cqlsh
 
 ```bash
 # Verify port is listening
-docker exec dse-node1 netstat -tlnp | grep 9042
+docker exec dse-node netstat -tlnp | grep 9042
 
 # Check if node is ready
-docker exec dse-node1 nodetool status
+docker exec dse-node nodetool status
 ```
 
 ### Issue: Data generation fails
 
 ```bash
 # Check if keyspace exists
-docker exec dse-node1 cqlsh -e "DESC KEYSPACE training;"
+docker exec dse-node cqlsh -e "DESC KEYSPACE training;"
 
 # Verify connectivity
-docker exec data-generator ping dse-node1
+docker exec data-generator ping dse-node
 
 # Check Python dependencies
 docker exec data-generator pip list | grep cassandra
@@ -378,8 +374,8 @@ docker exec data-generator pip list | grep cassandra
 
 You have successfully completed this exercise when:
 
-- ✅ All 6 Cassandra nodes are running (3 DSE + 3 HCD)
-- ✅ Both clusters show all nodes as "UN" (Up/Normal)
+- ✅ Both Cassandra nodes are running (1 DSE + 1 HCD)
+- ✅ Both nodes show status as "UN" (Up/Normal)
 - ✅ Schema exists on both DSE and HCD clusters
 - ✅ Sample data generated on DSE cluster
 - ✅ Monitoring stack is accessible
@@ -406,7 +402,7 @@ docker-compose up -d
 
 ## Key Takeaways
 
-1. **Cluster Formation**: Both DSE and HCD clusters form independently
+1. **Cluster Formation**: Both DSE and HCD nodes run independently
 2. **Schema Compatibility**: DSE schema can be adapted for HCD with minor changes
 3. **Data Generation**: Sample data helps practice migration scenarios
 4. **Monitoring**: Essential for tracking migration progress

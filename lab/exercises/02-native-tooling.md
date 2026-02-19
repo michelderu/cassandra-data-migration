@@ -25,6 +25,7 @@
 This exercise demonstrates using native Cassandra tools (COPY command and SSTableLoader) to migrate data from DSE to HCD. These tools are built into Cassandra and don't require additional software.
 
 ## Part 1: COPY Command Migration
+> Note: In this section we will only migrate data for tables: users, products and orders! So, not user_activity.
 
 ### Step 1: Export Data from DSE Using COPY
 
@@ -36,19 +37,19 @@ docker exec -it migration-tools bash
 mkdir -p /exports/copy
 
 # Export users table
-cqlsh dse-node1 -e "
+cqlsh dse-node -e "
 COPY training.users TO '/exports/copy/users.csv' 
 WITH HEADER = true;
 "
 
 # Export products table
-cqlsh dse-node1 -e "
+cqlsh dse-node -e "
 COPY training.products TO '/exports/copy/products.csv' 
 WITH HEADER = true;
 "
 
 # Export orders table (smaller subset for testing)
-cqlsh dse-node1 -e "
+cqlsh dse-node -e "
 COPY training.orders TO '/exports/copy/orders.csv' 
 WITH HEADER = true 
 AND MAXREQUESTS = 10 
@@ -73,19 +74,19 @@ orders.csv: ~2001 lines (2000 data + 1 header)
 # Still in migration-tools container
 
 # Import users
-cqlsh hcd-node1 -e "
+cqlsh hcd-node -e "
 COPY training.users FROM '/exports/copy/users.csv' 
 WITH HEADER = true;
 "
 
 # Import products
-cqlsh hcd-node1 -e "
+cqlsh hcd-node -e "
 COPY training.products FROM '/exports/copy/products.csv' 
 WITH HEADER = true;
 "
 
 # Import orders
-cqlsh hcd-node1 -e "
+cqlsh hcd-node -e "
 COPY training.orders FROM '/exports/copy/orders.csv' 
 WITH HEADER = true 
 AND CHUNKSIZE = 100;
@@ -97,37 +98,56 @@ exit
 
 ### Step 3: Validate COPY Migration
 
+Use the validation script to verify the migration:
+
 ```bash
-# Compare row counts
-echo "=== DSE Row Counts ==="
-docker exec dse-node1 cqlsh -e "
-SELECT COUNT(*) FROM training.users;
-SELECT COUNT(*) FROM training.products;
-SELECT COUNT(*) FROM training.orders;
-"
-
-echo "=== HCD Row Counts ==="
-docker exec hcd-node1 cqlsh -e "
-SELECT COUNT(*) FROM training.users;
-SELECT COUNT(*) FROM training.products;
-SELECT COUNT(*) FROM training.orders;
-"
-
-# Sample data comparison
-echo "=== Sample Data from DSE ==="
-docker exec dse-node1 cqlsh -e "
-SELECT user_id, username, email FROM training.users LIMIT 5;
-"
-
-echo "=== Sample Data from HCD ==="
-docker exec hcd-node1 cqlsh -e "
-SELECT user_id, username, email FROM training.users LIMIT 5;
+# Run comprehensive validation
+docker exec data-generator bash -c "
+pip install -q cassandra-driver && \
+python3 /scripts/validate_migration.py
 "
 ```
 
+**Expected Output:**
+```
+============================================================
+Migration Consistency Validation
+============================================================
+
+Validating table: users
+  DSE count: 1,000
+  HCD count: 1,000
+  Count check: ✓ PASS
+  Validating sample data...
+  Sample check: ✓ PASS (100 rows validated)
+
+Validating table: products
+  DSE count: 500
+  HCD count: 500
+  Count check: ✓ PASS
+  Validating sample data...
+  Sample check: ✓ PASS (100 rows validated)
+
+Validating table: orders
+  DSE count: 2,000
+  HCD count: 2,000
+  Count check: ✓ PASS
+  Validating sample data...
+  Sample check: ✓ PASS (100 rows validated)
+
+Validating table: user_activity
+  DSE count: 5,000
+  HCD count: 0
+  Count check: ✗ FAIL (difference: 5000)
+
+============================================================
+✗ Validation failed - investigate discrepancies
+============================================================
+```
+
 **Validation Checklist:**
-- [ ] Row counts match between DSE and HCD
-- [ ] Sample data looks identical
+- [ ] All row counts match between DSE and HCD
+- [ ] Sample data validation passes for all tables
 - [ ] No errors during import
 
 ## Part 2: SSTableLoader Migration
@@ -135,64 +155,61 @@ SELECT user_id, username, email FROM training.users LIMIT 5;
 ### Step 4: Create Snapshot on DSE
 
 ```bash
+# Access DSE node
+docker exec -it dse-node bash
+
 # Create snapshot of training keyspace
-docker exec dse-node1 nodetool snapshot training -t migration_snapshot
+nodetool snapshot training -t migration_snapshot
 
 # List snapshots
-docker exec dse-node1 nodetool listsnapshots
+nodetool listsnapshots
 
 # Find snapshot location
-docker exec dse-node1 find /var/lib/cassandra/data/training -name migration_snapshot -type d
+find /var/lib/cassandra/data/training -name migration_snapshot -type d
 ```
 
-### Step 5: Copy SSTables to Staging Area
+### Step 5: Prepare SSTables on DSE Node
 
 ```bash
-# Access DSE node
-docker exec -it dse-node1 bash
-
 # Create staging directory
-mkdir -p /tmp/sstables/training/users
+mkdir -p /tmp/sstables/training/user_activity
 
 # Copy SSTables from snapshot
-cp /var/lib/cassandra/data/training/users-*/snapshots/migration_snapshot/* \
-   /tmp/sstables/training/users/
+cp /var/lib/cassandra/data/training/user_activity-*/snapshots/migration_snapshot/* \
+   /tmp/sstables/training/user_activity/
 
 # Verify files
-ls -lh /tmp/sstables/training/users/
+ls -lh /tmp/sstables/training/user_activity/
 
-# Exit DSE node
-exit
-
-# Copy from DSE container to host
-docker cp dse-node1:/tmp/sstables /tmp/sstables
-
-# Copy from host to migration-tools container
-docker cp /tmp/sstables migration-tools:/exports/
+# You should see files like:
+# - *-Data.db (actual data)
+# - *-Index.db (index)
+# - *-Statistics.db (statistics)
+# - *-Summary.db (summary)
+# etc.
 ```
 
-### Step 6: Load SSTables to HCD
+### Step 6: Load SSTables to HCD Using sstableloader
 
 ```bash
-# Access migration-tools container
-docker exec -it migration-tools bash
+# Still in DSE node container
 
-# Use sstableloader to stream data to HCD
-# Note: This requires the SSTables to be in the correct format
-# For this lab, we'll demonstrate the command structure
+# Verify HCD is reachable via CQL (port 9042)
+cqlsh hcd-node -e "SELECT cluster_name FROM system.local;"
 
-# First, verify HCD cluster is accessible
-nodetool -h hcd-node1 status
+# Ensure user_activity is empty (we didn't copy it in the previous excercise
+cqlsh hcd-node -e "SELECT * from training.user_activity;"
 
-# Load SSTables (this may fail due to format differences between DSE 5.1 and Cassandra 4.1)
-# This is expected and demonstrates a real-world challenge
-sstableloader \
-  -d hcd-node1,hcd-node2,hcd-node3 \
-  -u cassandra \
-  -pw cassandra \
-  /exports/sstables/training/users
+# Use sstableloader to stream data from DSE to HCD
+# Note: sstableloader is in /opt/dse/resources/cassandra/bin/
+# This will likely fail (or crash the DSE node) due to SSTable format incompatibility
+# DSE 5.1 uses 'mc' format, Cassandra 4.1 uses 'na/nb' format
+# The -d flag specifies the initial contact point for the target cluster
+/opt/dse/resources/cassandra/bin/sstableloader \
+  -d hcd-node \
+  /tmp/sstables/training/user_activity
 
-# Exit container
+# Exit DSE node
 exit
 ```
 
@@ -202,167 +219,77 @@ exit
 
 ```bash
 # Clear snapshot on DSE
-docker exec dse-node1 nodetool clearsnapshot -t migration_snapshot training
+docker exec dse-node nodetool clearsnapshot -t migration_snapshot training
 
 # Verify snapshot removed
-docker exec dse-node1 nodetool listsnapshots
+docker exec dse-node nodetool listsnapshots
 ```
 
-## Part 3: Performance Comparison
+## Part 3: Health Check
 
-### Step 8: Measure COPY Performance
-
-```bash
-# Access migration-tools container
-docker exec -it migration-tools bash
-
-# Time the export
-time cqlsh dse-node1 -e "
-COPY training.user_activity TO '/exports/copy/user_activity.csv' 
-WITH HEADER = true;
-"
-
-# Time the import
-time cqlsh hcd-node1 -e "
-COPY training.user_activity FROM '/exports/copy/user_activity.csv' 
-WITH HEADER = true;
-"
-
-# Exit container
-exit
-```
-
-**Record Results:**
-- Export time: _____ seconds
-- Import time: _____ seconds
-- Total time: _____ seconds
-
-### Step 9: Analyze Performance
+### Step 8: Analyze Health
 
 ```bash
 # Check table statistics on HCD
-docker exec hcd-node1 nodetool tablestats training.user_activity
+docker exec hcd-node nodetool tablestats training.user_activity
 
 # Check compaction stats
-docker exec hcd-node1 nodetool compactionstats
+docker exec hcd-node nodetool compactionstats
 
 # Check if repair is needed
-docker exec hcd-node1 nodetool repair training
+docker exec hcd-node nodetool repair training
 ```
 
 ## Part 4: Data Validation
 
-### Step 10: Comprehensive Validation
+### Step 9: Sample Data Verification
+
+Use the comprehensive validation script:
 
 ```bash
-# Create validation script
-docker exec -it migration-tools bash
-
-cat > /scripts/validate_migration.sh << 'EOF'
-#!/bin/bash
-
-KEYSPACE="training"
-TABLES=("users" "products" "orders" "user_activity")
-
-echo "=== Migration Validation Report ==="
-echo "Generated: $(date)"
-echo ""
-
-for TABLE in "${TABLES[@]}"; do
-  echo "Table: $TABLE"
-  
-  # Get counts
-  DSE_COUNT=$(cqlsh dse-node1 -e "SELECT COUNT(*) FROM $KEYSPACE.$TABLE;" | grep -oP '\d+' | head -1)
-  HCD_COUNT=$(cqlsh hcd-node1 -e "SELECT COUNT(*) FROM $KEYSPACE.$TABLE;" | grep -oP '\d+' | head -1)
-  
-  echo "  DSE count: $DSE_COUNT"
-  echo "  HCD count: $HCD_COUNT"
-  
-  if [ "$DSE_COUNT" -eq "$HCD_COUNT" ]; then
-    echo "  Status: ✓ PASS"
-  else
-    echo "  Status: ✗ FAIL (mismatch)"
-  fi
-  echo ""
-done
-
-echo "=== Validation Complete ==="
-EOF
-
-chmod +x /scripts/validate_migration.sh
-
-# Run validation
-/scripts/validate_migration.sh
-
-# Exit container
-exit
+# Run the validation script from the data-generator container
+# This script validates all tables with row counts and sample data checks
+docker exec data-generator bash -c "
+pip install -q cassandra-driver && \
+python3 /scripts/validate_migration.py
+"
 ```
 
-### Step 11: Sample Data Verification
+**Expected Output:**
+```
+============================================================
+Migration Consistency Validation
+============================================================
 
-```bash
-# Create Python validation script
-docker exec -it migration-tools bash
+Validating table: users
+  DSE count: 1,000
+  HCD count: 1,000
+  Count check: ✓ PASS
+  Validating sample data...
+  Sample check: ✓ PASS (100 rows validated)
 
-cat > /scripts/validate_data.py << 'EOF'
-from cassandra.cluster import Cluster
-import sys
+Validating table: products
+  DSE count: 500
+  HCD count: 500
+  Count check: ✓ PASS
+  Validating sample data...
+  Sample check: ✓ PASS (100 rows validated)
 
-def validate_table(keyspace, table):
-    # Connect to both clusters
-    dse_cluster = Cluster(['dse-node1'])
-    hcd_cluster = Cluster(['hcd-node1'])
-    
-    dse_session = dse_cluster.connect(keyspace)
-    hcd_session = hcd_cluster.connect(keyspace)
-    
-    # Get sample from DSE
-    dse_rows = dse_session.execute(f"SELECT * FROM {table} LIMIT 100")
-    
-    mismatches = 0
-    for row in dse_rows:
-        # Build WHERE clause from primary key
-        # For users table: user_id is primary key
-        pk_value = row.user_id
-        
-        # Query HCD
-        hcd_result = hcd_session.execute(
-            f"SELECT * FROM {table} WHERE user_id = %s",
-            [pk_value]
-        )
-        
-        hcd_row = hcd_result.one()
-        
-        if hcd_row is None:
-            print(f"Missing row in HCD: {pk_value}")
-            mismatches += 1
-        elif row != hcd_row:
-            print(f"Data mismatch for: {pk_value}")
-            mismatches += 1
-    
-    print(f"\nValidation complete for {table}")
-    print(f"Checked: 100 rows")
-    print(f"Mismatches: {mismatches}")
-    
-    dse_cluster.shutdown()
-    hcd_cluster.shutdown()
-    
-    return mismatches == 0
+Validating table: orders
+  DSE count: 2,000
+  HCD count: 2,000
+  Count check: ✓ PASS
+  Validating sample data...
+  Sample check: ✓ PASS (100 rows validated)
 
-if __name__ == "__main__":
-    # Install driver if needed
-    import subprocess
-    subprocess.run(["pip", "install", "-q", "cassandra-driver"])
-    
-    success = validate_table("training", "users")
-    sys.exit(0 if success else 1)
-EOF
+Validating table: user_activity
+  DSE count: 5,000
+  HCD count: 0
+  Count check: ✗ FAIL (difference: 5000)
 
-# Run validation
-python3 /scripts/validate_data.py
-
-# Exit container
-exit
+============================================================
+✗ Validation failed - investigate discrepancies
+============================================================
 ```
 
 ## Troubleshooting
@@ -373,7 +300,7 @@ exit
 # Increase timeout
 docker exec -it migration-tools bash
 
-cqlsh dse-node1 --request-timeout=300 -e "
+cqlsh dse-node --request-timeout=300 -e "
 COPY training.users TO '/exports/copy/users.csv' 
 WITH HEADER = true;
 "
@@ -387,7 +314,7 @@ exit
 # Reduce page size
 docker exec -it migration-tools bash
 
-cqlsh dse-node1 -e "
+cqlsh dse-node -e "
 COPY training.users TO '/exports/copy/users.csv' 
 WITH HEADER = true 
 AND PAGESIZE = 100;
@@ -404,7 +331,7 @@ exit
 
 ```bash
 # Run as root in container
-docker exec -u root -it dse-node1 bash
+docker exec -u root -it dse-node bash
 
 # Copy files with proper permissions
 cp -r /var/lib/cassandra/data/training/users-*/snapshots/migration_snapshot/* \
@@ -485,14 +412,14 @@ Proceed to [Exercise 3: DSBulk Migration](03-dsbulk-migration.md) to learn about
 docker exec migration-tools rm -rf /exports/copy/*
 
 # Clear snapshots
-docker exec dse-node1 nodetool clearsnapshot --all
+docker exec dse-node nodetool clearsnapshot --all
 
 # Truncate HCD tables if needed
-docker exec hcd-node1 cqlsh -e "
+docker exec hcd-node cqlsh -e "
 TRUNCATE training.users;
 TRUNCATE training.products;
 TRUNCATE training.orders;
-TRUNCATE training.user_activity;
+TRUNCATE training.user_activity
 "
 ```
 

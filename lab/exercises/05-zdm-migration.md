@@ -1,4 +1,4 @@
-# Exercise 4: Zero Downtime Migration with ZDM Proxy
+# Exercise 5: Zero Downtime Migration with ZDM Proxy
 
 ## Objectives
 
@@ -10,7 +10,7 @@
 
 ## Prerequisites
 
-- Completed Exercises 1-3
+- Completed Exercises 1-4
 - DSE cluster with data
 - HCD cluster with schema and data
 - ZDM Proxy container running
@@ -33,6 +33,16 @@ This exercise demonstrates using ZDM (Zero Downtime Migration) Proxy to migrate 
 
 ## Phase 1: Proxy Deployment (Origin Only)
 
+### Step 0: Ensure HCD Target is cleared
+```bash
+docker exec hcd-node cqlsh -e "
+TRUNCATE training.users;
+TRUNCATE training.products;
+TRUNCATE training.orders;
+TRUNCATE training.user_activity
+"
+```
+
 ### Step 1: Verify ZDM Proxy Container
 
 ```bash
@@ -53,8 +63,8 @@ docker-compose up -d zdm-proxy
 cat zdm-config/zdm-config.yml
 
 # The configuration should look like this:
-# origin_contact_points: "dse-node1"
-# target_contact_points: "hcd-node1"
+# origin_contact_points: "dse-node"
+# target_contact_points: "hcd-node"
 # proxy_listen_port: 9042
 # read_mode: "PRIMARY_ONLY"
 # primary_cluster: "ORIGIN"
@@ -99,12 +109,12 @@ VALUES (uuid(), 'zdm_test_user', 'zdm@test.com', 'active', toTimestamp(now()));
 
 # Verify data exists on both clusters
 echo "=== Checking DSE ==="
-cqlsh dse-node1 -e "
+cqlsh dse-node -e "
 SELECT username, email FROM training.users WHERE username = 'zdm_test_user' ALLOW FILTERING;
 "
 
 echo "=== Checking HCD ==="
-cqlsh hcd-node1 -e "
+cqlsh hcd-node -e "
 SELECT username, email FROM training.users WHERE username = 'zdm_test_user' ALLOW FILTERING;
 "
 
@@ -123,12 +133,12 @@ python3 /scripts/test_dual_write.py
 
 # Verify on both clusters
 echo "=== DSE Count ==="
-cqlsh dse-node1 -e "
+cqlsh dse-node -e "
 SELECT username FROM training.users
 " | grep zdm_bulk | wc -l
 
 echo "=== HCD Count ==="
-cqlsh hcd-node1 -e "
+cqlsh hcd-node -e "
 SELECT username FROM training.users
 " | grep zdm_bulk | wc -l
 
@@ -203,25 +213,25 @@ docker exec -it migration-tools bash
 # Export data from DSE
 echo "Exporting historical data from DSE..."
 dsbulk unload \
-  -h dse-node1 \
+  -h dse-node \
   -k training \
   -t users \
   -url /data/export/users
 
 dsbulk unload \
-  -h dse-node1 \
+  -h dse-node \
   -k training \
   -t products \
   -url /data/export/products
 
 dsbulk unload \
-  -h dse-node1 \
+  -h dse-node \
   -k training \
   -t orders \
   -url /data/export/orders
 
 dsbulk unload \
-  -h dse-node1 \
+  -h dse-node \
   -k training \
   -t user_activity \
   -url /data/export/user_activity
@@ -229,25 +239,25 @@ dsbulk unload \
 # Import data to HCD
 echo "Importing historical data to HCD..."
 dsbulk load \
-  -h hcd-node1 \
+  -h hcd-node \
   -k training \
   -t users \
   -url /data/export/users
 
 dsbulk load \
-  -h hcd-node1 \
+  -h hcd-node \
   -k training \
   -t products \
   -url /data/export/products
 
 dsbulk load \
-  -h hcd-node1 \
+  -h hcd-node \
   -k training \
   -t orders \
   -url /data/export/orders
 
 dsbulk load \
-  -h hcd-node1 \
+  -h hcd-node \
   -k training \
   -t user_activity \
   -url /data/export/user_activity
@@ -255,16 +265,16 @@ dsbulk load \
 # Verify data counts match
 echo "=== Verifying backfill ==="
 echo "DSE counts:"
-cqlsh dse-node1 -e "SELECT COUNT(*) FROM training.users;"
-cqlsh dse-node1 -e "SELECT COUNT(*) FROM training.products;"
-cqlsh dse-node1 -e "SELECT COUNT(*) FROM training.orders;"
-cqlsh dse-node1 -e "SELECT COUNT(*) FROM training.user_activity;"
+cqlsh dse-node -e "SELECT COUNT(*) FROM training.users;"
+cqlsh dse-node -e "SELECT COUNT(*) FROM training.products;"
+cqlsh dse-node -e "SELECT COUNT(*) FROM training.orders;"
+cqlsh dse-node -e "SELECT COUNT(*) FROM training.user_activity;"
 
 echo "HCD counts:"
-cqlsh hcd-node1 -e "SELECT COUNT(*) FROM training.users;"
-cqlsh hcd-node1 -e "SELECT COUNT(*) FROM training.products;"
-cqlsh hcd-node1 -e "SELECT COUNT(*) FROM training.orders;"
-cqlsh hcd-node1 -e "SELECT COUNT(*) FROM training.user_activity;"
+cqlsh hcd-node -e "SELECT COUNT(*) FROM training.users;"
+cqlsh hcd-node -e "SELECT COUNT(*) FROM training.products;"
+cqlsh hcd-node -e "SELECT COUNT(*) FROM training.orders;"
+cqlsh hcd-node -e "SELECT COUNT(*) FROM training.user_activity;"
 
 exit
 ```
@@ -390,19 +400,19 @@ curl -s http://localhost:14001/metrics | grep "zdm_proxy_errors_total"
 ```bash
 # Check DSE cluster
 echo "=== DSE Cluster Status ==="
-docker exec dse-node1 nodetool status
+docker exec dse-node nodetool status
 
 # Check HCD cluster
 echo "=== HCD Cluster Status ==="
-docker exec hcd-node1 nodetool status
+docker exec hcd-node nodetool status
 
 # Check compaction on HCD (should be active due to writes)
 echo "=== HCD Compaction Status ==="
-docker exec hcd-node1 nodetool compactionstats
+docker exec hcd-node nodetool compactionstats
 
 # Check table statistics
 echo "=== HCD Table Statistics ==="
-docker exec hcd-node1 nodetool tablestats training.users | grep -E "Table:|Number of partitions|Memtable|Compacted"
+docker exec hcd-node nodetool tablestats training.users | grep -E "Table:|Number of partitions|Memtable|Compacted"
 ```
 
 ### Step 14: Prepare for Cutover
@@ -415,11 +425,11 @@ docker exec -it migration-tools bash
 python3 /scripts/validate_zdm_migration.py
 
 # Check cluster health
-nodetool -h dse-node1 status
-nodetool -h hcd-node1 status
+nodetool -h dse-node status
+nodetool -h hcd-node status
 
 # Verify no pending compactions
-nodetool -h hcd-node1 compactionstats
+nodetool -h hcd-node compactionstats
 
 exit
 ```
@@ -439,13 +449,13 @@ For this lab, we'll simulate by testing direct HCD connections:
 docker exec -it migration-tools bash
 
 # Test direct connection to HCD
-cqlsh hcd-node1 -e "
+cqlsh hcd-node -e "
 SELECT cluster_name, release_version FROM system.local;
 SELECT COUNT(*) FROM training.users;
 "
 
 # Verify all data is accessible
-cqlsh hcd-node1 -e "
+cqlsh hcd-node -e "
 SELECT COUNT(*) FROM training.users;
 SELECT COUNT(*) FROM training.products;
 SELECT COUNT(*) FROM training.orders;
@@ -453,7 +463,7 @@ SELECT COUNT(*) FROM training.user_activity;
 "
 
 # Test application queries
-cqlsh hcd-node1 -e "
+cqlsh hcd-node -e "
 SELECT username, email, status FROM training.users 
 WHERE status = 'active' LIMIT 10 ALLOW FILTERING;
 "
@@ -473,8 +483,8 @@ docker logs zdm-proxy
 cat zdm-config/zdm-config.yml
 
 # Check if clusters are accessible
-docker exec migration-tools ping dse-node1
-docker exec migration-tools ping hcd-node1
+docker exec migration-tools ping dse-node
+docker exec migration-tools ping hcd-node
 
 # Restart proxy
 docker-compose restart zdm-proxy
@@ -490,8 +500,8 @@ docker logs zdm-proxy | grep -i error
 curl http://localhost:14001/metrics | grep target_requests
 
 # Test connectivity
-docker exec migration-tools cqlsh dse-node1 -e "SELECT COUNT(*) FROM training.users;"
-docker exec migration-tools cqlsh hcd-node1 -e "SELECT COUNT(*) FROM training.users;"
+docker exec migration-tools cqlsh dse-node -e "SELECT COUNT(*) FROM training.users;"
+docker exec migration-tools cqlsh hcd-node -e "SELECT COUNT(*) FROM training.users;"
 ```
 
 ### Issue: High latency through proxy
@@ -501,8 +511,8 @@ docker exec migration-tools cqlsh hcd-node1 -e "SELECT COUNT(*) FROM training.us
 curl http://localhost:14001/metrics | grep duration
 
 # Check cluster latency
-docker exec dse-node1 nodetool proxyhistograms
-docker exec hcd-node1 nodetool proxyhistograms
+docker exec dse-node nodetool proxyhistograms
+docker exec hcd-node nodetool proxyhistograms
 
 # Verify network
 docker exec migration-tools ping -c 5 zdm-proxy
@@ -542,7 +552,7 @@ Proceed to [Exercise 5: Validation and Monitoring](05-validation-monitoring.md) 
 docker-compose stop zdm-proxy
 
 # Remove test data
-docker exec hcd-node1 cqlsh -e "
+docker exec hcd-node cqlsh -e "
 DELETE FROM training.users WHERE username LIKE 'zdm_%' ALLOW FILTERING;
 DELETE FROM training.users WHERE username LIKE 'app_user_%' ALLOW FILTERING;
 "

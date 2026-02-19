@@ -22,7 +22,7 @@ This guide provides Docker-specific commands for working with the lab environmen
 docker-compose up -d
 
 # Start specific service
-docker-compose up -d dse-node1
+docker-compose up -d dse-node
 
 # Stop all services
 docker-compose down
@@ -31,13 +31,13 @@ docker-compose down
 docker-compose down -v
 
 # Restart specific service
-docker-compose restart dse-node1
+docker-compose restart dse-node
 
 # Stop specific service
-docker-compose stop hcd-node1
+docker-compose stop hcd-node
 
 # Start stopped service
-docker-compose start hcd-node1
+docker-compose start hcd-node
 ```
 
 ### Viewing Status
@@ -47,35 +47,35 @@ docker-compose start hcd-node1
 docker-compose ps
 
 # View specific service
-docker-compose ps dse-node1
+docker-compose ps dse-node
 
 # View logs
-docker-compose logs -f dse-node1
+docker-compose logs -f dse-node
 
 # View logs for all services
 docker-compose logs -f
 
 # View last 100 lines
-docker-compose logs --tail=100 dse-node1
+docker-compose logs --tail=100 dse-node
 ```
 
 ### Accessing Containers
 
 ```bash
 # Access DSE node shell
-docker exec -it dse-node1 bash
+docker exec -it dse-node bash
 
 # Access HCD node shell
-docker exec -it hcd-node1 bash
+docker exec -it hcd-node bash
 
 # Access migration tools container
 docker exec -it migration-tools bash
 
 # Access as root user
-docker exec -u root -it dse-node1 bash
+docker exec -u root -it dse-node bash
 
 # Run single command
-docker exec dse-node1 nodetool status
+docker exec dse-node nodetool status
 ```
 
 ## Cluster Operations
@@ -84,81 +84,81 @@ docker exec dse-node1 nodetool status
 
 ```bash
 # Check cluster status
-docker exec dse-node1 nodetool status
+docker exec dse-node nodetool status
 
 # Get cluster info
-docker exec dse-node1 nodetool info
+docker exec dse-node nodetool info
 
 # Check ring
-docker exec dse-node1 nodetool ring
+docker exec dse-node nodetool ring
 
 # Describe cluster
-docker exec dse-node1 nodetool describecluster
+docker exec dse-node nodetool describecluster
 
 # Check gossip info
-docker exec dse-node1 nodetool gossipinfo
+docker exec dse-node nodetool gossipinfo
 
 # Thread pool stats
-docker exec dse-node1 nodetool tpstats
+docker exec dse-node nodetool tpstats
 
 # Compaction stats
-docker exec dse-node1 nodetool compactionstats
+docker exec dse-node nodetool compactionstats
 
 # Table stats
-docker exec dse-node1 nodetool tablestats training
+docker exec dse-node nodetool tablestats training
 
 # Proxy histograms
-docker exec dse-node1 nodetool proxyhistograms
+docker exec dse-node nodetool proxyhistograms
 ```
 
 ### HCD Cluster
 
 ```bash
 # Check cluster status
-docker exec hcd-node1 nodetool status
+docker exec hcd-node nodetool status
 
 # Get cluster info
-docker exec hcd-node1 nodetool info
+docker exec hcd-node nodetool info
 
 # Check ring
-docker exec hcd-node1 nodetool ring
+docker exec hcd-node nodetool ring
 
 # Describe cluster
-docker exec hcd-node1 nodetool describecluster
+docker exec hcd-node nodetool describecluster
 
 # Thread pool stats
-docker exec hcd-node1 nodetool tpstats
+docker exec hcd-node nodetool tpstats
 
 # Compaction stats
-docker exec hcd-node1 nodetool compactionstats
+docker exec hcd-node nodetool compactionstats
 
 # Table stats
-docker exec hcd-node1 nodetool tablestats training
+docker exec hcd-node nodetool tablestats training
 
 # Repair keyspace
-docker exec hcd-node1 nodetool repair training
+docker exec hcd-node nodetool repair training
 ```
 
 ### CQL Access
 
 ```bash
 # Connect to DSE via cqlsh
-docker exec -it dse-node1 cqlsh
+docker exec -it dse-node cqlsh
 
 # Connect to HCD via cqlsh
-docker exec -it hcd-node1 cqlsh
+docker exec -it hcd-node cqlsh
 
 # Connect through ZDM Proxy
 docker exec -it migration-tools cqlsh zdm-proxy 9042
 
 # Execute single query on DSE
-docker exec dse-node1 cqlsh -e "SELECT COUNT(*) FROM training.users;"
+docker exec dse-node cqlsh -e "SELECT COUNT(*) FROM training.users;"
 
 # Execute single query on HCD
-docker exec hcd-node1 cqlsh -e "SELECT COUNT(*) FROM training.users;"
+docker exec hcd-node cqlsh -e "SELECT COUNT(*) FROM training.users;"
 
 # Execute CQL file
-docker exec -i dse-node1 cqlsh < init-scripts/01-create-schema.cql
+docker exec -i dse-node cqlsh < init-scripts/01-create-schema.cql
 
 # From host machine (if cqlsh installed)
 cqlsh localhost 9042  # DSE
@@ -172,16 +172,16 @@ cqlsh localhost 9044  # ZDM Proxy
 
 ```bash
 # Create snapshot on DSE
-docker exec dse-node1 nodetool snapshot training -t my_snapshot
+docker exec dse-node nodetool snapshot training -t my_snapshot
 
 # List snapshots
-docker exec dse-node1 nodetool listsnapshots
+docker exec dse-node nodetool listsnapshots
 
 # Clear specific snapshot
-docker exec dse-node1 nodetool clearsnapshot -t my_snapshot training
+docker exec dse-node nodetool clearsnapshot -t my_snapshot training
 
 # Clear all snapshots
-docker exec dse-node1 nodetool clearsnapshot --all
+docker exec dse-node nodetool clearsnapshot --all
 ```
 
 ### Data Export/Import
@@ -189,20 +189,20 @@ docker exec dse-node1 nodetool clearsnapshot --all
 ```bash
 # Export data using COPY (from within container)
 docker exec -it migration-tools bash -c "
-cqlsh dse-node1 -e \"
+cqlsh dse-node -e \"
 COPY training.users TO '/exports/users.csv' WITH HEADER = true;
 \"
 "
 
 # Import data using COPY
 docker exec -it migration-tools bash -c "
-cqlsh hcd-node1 -e \"
+cqlsh hcd-node -e \"
 COPY training.users FROM '/exports/users.csv' WITH HEADER = true;
 \"
 "
 
 # Copy files between host and container
-docker cp dse-node1:/tmp/data.csv ./data.csv
+docker cp dse-node:/tmp/data.csv ./data.csv
 docker cp ./data.csv migration-tools:/exports/
 ```
 
@@ -212,7 +212,7 @@ docker cp ./data.csv migration-tools:/exports/
 # Export with DSBulk
 docker exec -it migration-tools bash -c "
 dsbulk unload \
-  -h dse-node1 \
+  -h dse-node \
   -k training \
   -t users \
   -url /exports/users
@@ -221,7 +221,7 @@ dsbulk unload \
 # Import with DSBulk
 docker exec -it migration-tools bash -c "
 dsbulk load \
-  -h hcd-node1 \
+  -h hcd-node \
   -k training \
   -t users \
   -url /exports/users
@@ -283,7 +283,7 @@ curl http://localhost:14001/metrics | grep "zdm_proxy_errors_total"
 docker stats
 
 # View specific container
-docker stats dse-node1
+docker stats dse-node
 
 # One-time snapshot
 docker stats --no-stream
@@ -298,48 +298,48 @@ docker stats --format "table {{.Container}}\t{{.CPUPerc}}\t{{.MemUsage}}"
 
 ```bash
 # View container logs
-docker logs dse-node1
+docker logs dse-node
 
 # Follow logs
-docker logs -f dse-node1
+docker logs -f dse-node
 
 # Last 100 lines
-docker logs --tail=100 dse-node1
+docker logs --tail=100 dse-node
 
 # Logs since timestamp
-docker logs --since 2024-01-01T00:00:00 dse-node1
+docker logs --since 2024-01-01T00:00:00 dse-node
 
 # View Cassandra system log
-docker exec dse-node1 tail -f /var/log/cassandra/system.log
+docker exec dse-node tail -f /var/log/cassandra/system.log
 
 # Search for errors
-docker exec dse-node1 grep ERROR /var/log/cassandra/system.log
+docker exec dse-node grep ERROR /var/log/cassandra/system.log
 ```
 
 ### Container Inspection
 
 ```bash
 # Inspect container
-docker inspect dse-node1
+docker inspect dse-node
 
 # Get IP address
-docker inspect dse-node1 | jq '.[0].NetworkSettings.Networks'
+docker inspect dse-node | jq '.[0].NetworkSettings.Networks'
 
 # Get environment variables
-docker inspect dse-node1 | jq '.[0].Config.Env'
+docker inspect dse-node | jq '.[0].Config.Env'
 
 # Get mounts
-docker inspect dse-node1 | jq '.[0].Mounts'
+docker inspect dse-node | jq '.[0].Mounts'
 ```
 
 ### Health Checks
 
 ```bash
 # Check container health
-docker inspect dse-node1 | jq '.[0].State.Health'
+docker inspect dse-node | jq '.[0].State.Health'
 
 # View health check logs
-docker inspect dse-node1 | jq '.[0].State.Health.Log'
+docker inspect dse-node | jq '.[0].State.Health.Log'
 ```
 
 ### Resource Issues
@@ -371,33 +371,33 @@ docker network ls
 docker network inspect lab_cassandra-migration
 
 # Test connectivity between containers
-docker exec dse-node1 ping hcd-node1
-docker exec dse-node1 ping -c 3 hcd-node1
+docker exec dse-node ping hcd-node
+docker exec dse-node ping -c 3 hcd-node
 
 # Check if port is listening
-docker exec dse-node1 netstat -tlnp | grep 9042
+docker exec dse-node netstat -tlnp | grep 9042
 
 # Test port connectivity
-docker exec migration-tools telnet dse-node1 9042
+docker exec migration-tools telnet dse-node 9042
 ```
 
 ### Restart Strategies
 
 ```bash
 # Restart single node
-docker-compose restart dse-node1
+docker-compose restart dse-node
 
 # Restart cluster (DSE)
-docker-compose restart dse-node1 dse-node2 dse-node3
+docker-compose restart dse-node dse-node dse-node
 
 # Restart cluster (HCD)
-docker-compose restart hcd-node1 hcd-node2 hcd-node3
+docker-compose restart hcd-node hcd-node hcd-node
 
 # Restart all services
 docker-compose restart
 
 # Force recreate container
-docker-compose up -d --force-recreate dse-node1
+docker-compose up -d --force-recreate dse-node
 ```
 
 ## Network Operations
@@ -422,21 +422,21 @@ docker network inspect lab_cassandra-migration | jq '.[0].Containers'
 docker-compose ps
 
 # Check specific port
-docker port dse-node1 9042
+docker port dse-node 9042
 
 # List all ports for container
-docker port dse-node1
+docker port dse-node
 ```
 
 ### DNS Resolution
 
 ```bash
 # Test DNS resolution
-docker exec migration-tools nslookup dse-node1
-docker exec migration-tools nslookup hcd-node1
+docker exec migration-tools nslookup dse-node
+docker exec migration-tools nslookup hcd-node
 
 # Test with ping
-docker exec migration-tools ping -c 3 dse-node1
+docker exec migration-tools ping -c 3 dse-node
 ```
 
 ## Volume Management
@@ -448,10 +448,10 @@ docker exec migration-tools ping -c 3 dse-node1
 docker volume ls
 
 # Inspect volume
-docker volume inspect lab_dse-node1-data
+docker volume inspect lab_dse-node-data
 
 # Remove specific volume (WARNING: deletes data)
-docker volume rm lab_dse-node1-data
+docker volume rm lab_dse-node-data
 
 # Remove all unused volumes
 docker volume prune
@@ -462,15 +462,15 @@ docker volume prune
 ```bash
 # Backup volume to tar
 docker run --rm \
-  -v lab_dse-node1-data:/data \
+  -v lab_dse-node-data:/data \
   -v $(pwd):/backup \
-  alpine tar czf /backup/dse-node1-backup.tar.gz /data
+  alpine tar czf /backup/dse-node-backup.tar.gz /data
 
 # Restore volume from tar
 docker run --rm \
-  -v lab_dse-node1-data:/data \
+  -v lab_dse-node-data:/data \
   -v $(pwd):/backup \
-  alpine tar xzf /backup/dse-node1-backup.tar.gz -C /
+  alpine tar xzf /backup/dse-node-backup.tar.gz -C /
 ```
 
 ## Useful Aliases
@@ -479,22 +479,22 @@ Add these to your `~/.bashrc` or `~/.zshrc`:
 
 ```bash
 # Container access
-alias dse1='docker exec -it dse-node1 bash'
-alias hcd1='docker exec -it hcd-node1 bash'
+alias dse1='docker exec -it dse-node bash'
+alias hcd1='docker exec -it hcd-node bash'
 alias tools='docker exec -it migration-tools bash'
 
 # CQL access
-alias cqldse='docker exec -it dse-node1 cqlsh'
-alias cqlhcd='docker exec -it hcd-node1 cqlsh'
+alias cqldse='docker exec -it dse-node cqlsh'
+alias cqlhcd='docker exec -it hcd-node cqlsh'
 alias cqlzdm='docker exec -it migration-tools cqlsh zdm-proxy 9042'
 
 # Cluster status
-alias dse-status='docker exec dse-node1 nodetool status'
-alias hcd-status='docker exec hcd-node1 nodetool status'
+alias dse-status='docker exec dse-node nodetool status'
+alias hcd-status='docker exec hcd-node nodetool status'
 
 # Logs
-alias dse-logs='docker logs -f dse-node1'
-alias hcd-logs='docker logs -f hcd-node1'
+alias dse-logs='docker logs -f dse-node'
+alias hcd-logs='docker logs -f hcd-node'
 alias zdm-logs='docker logs -f zdm-proxy'
 
 # Lab management
@@ -522,8 +522,8 @@ sleep 60
 
 # Verify
 docker-compose ps
-docker exec dse-node1 nodetool status
-docker exec hcd-node1 nodetool status
+docker exec dse-node nodetool status
+docker exec hcd-node nodetool status
 ```
 
 ### Quick Health Check
@@ -533,14 +533,14 @@ docker exec hcd-node1 nodetool status
 docker-compose ps
 
 # Check DSE cluster
-docker exec dse-node1 nodetool status | grep UN
+docker exec dse-node nodetool status | grep UN
 
 # Check HCD cluster
-docker exec hcd-node1 nodetool status | grep UN
+docker exec hcd-node nodetool status | grep UN
 
 # Check data
-docker exec dse-node1 cqlsh -e "SELECT COUNT(*) FROM training.users;"
-docker exec hcd-node1 cqlsh -e "SELECT COUNT(*) FROM training.users;"
+docker exec dse-node cqlsh -e "SELECT COUNT(*) FROM training.users;"
+docker exec hcd-node cqlsh -e "SELECT COUNT(*) FROM training.users;"
 ```
 
 ### Performance Check
@@ -550,12 +550,12 @@ docker exec hcd-node1 cqlsh -e "SELECT COUNT(*) FROM training.users;"
 docker stats --no-stream
 
 # Cluster performance
-docker exec dse-node1 nodetool tpstats
-docker exec hcd-node1 nodetool tpstats
+docker exec dse-node nodetool tpstats
+docker exec hcd-node nodetool tpstats
 
 # Compaction status
-docker exec dse-node1 nodetool compactionstats
-docker exec hcd-node1 nodetool compactionstats
+docker exec dse-node nodetool compactionstats
+docker exec hcd-node nodetool compactionstats
 ```
 
 ## Tips and Best Practices
@@ -622,8 +622,8 @@ colima list
 
 - Docker Compose: `docker-compose --help`
 - Docker: `docker --help`
-- Nodetool: `docker exec dse-node1 nodetool help`
-- CQLsh: `docker exec dse-node1 cqlsh --help`
+- Nodetool: `docker exec dse-node nodetool help`
+- CQLsh: `docker exec dse-node cqlsh --help`
 - DSBulk: `docker exec migration-tools dsbulk --help`
 
 ### Useful Resources
@@ -640,8 +640,8 @@ colima list
 cd lab
 docker-compose up -d
 docker-compose ps
-docker exec dse-node1 nodetool status
-docker exec hcd-node1 nodetool status
+docker exec dse-node nodetool status
+docker exec hcd-node nodetool status
 ```
 
 **Quick Stop:**

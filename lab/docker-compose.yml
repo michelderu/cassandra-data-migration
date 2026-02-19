@@ -6,11 +6,11 @@
 
 services:
   # DSE 5.1 Cluster (Source)
-  dse-node1:
+  dse-node:
     image: datastax/dse-server:5.1.35
     platform: linux/amd64  # DSE images are x86_64; on Apple Silicon use Colima with --vz-rosetta
-    container_name: dse-node1
-    hostname: dse-node1
+    container_name: dse-node
+    hostname: dse-node
     networks:
       - cassandra-migration
     ports:
@@ -23,7 +23,7 @@ services:
       CLUSTER_NAME: DSE_Cluster
       DC: dc1
       RACK: Rack1
-      SEEDS: dse-node1
+      SEEDS: dse-node
       START_RPC: "true"
       JVM_EXTRA_OPTS: "-Xms1G -Xmx1G -Xmn512M"
       SNITCH: GossipingPropertyFileSnitch
@@ -35,7 +35,7 @@ services:
       memlock: -1
       nofile: 65536
     volumes:
-      - dse-node1-data:/var/lib/cassandra
+      - dse-node-data:/var/lib/cassandra
       - ./init-scripts:/docker-entrypoint-initdb.d
       - .:/workspace
     healthcheck:
@@ -48,10 +48,10 @@ services:
     cpus: 1.0
 
   # HCD Cluster (Target) - Using Cassandra 4.1 as HCD equivalent
-  hcd-node1:
+  hcd-node:
     image: cassandra:4.1
-    container_name: hcd-node1
-    hostname: hcd-node1
+    container_name: hcd-node
+    hostname: hcd-node
     networks:
       - cassandra-migration
     ports:
@@ -62,12 +62,12 @@ services:
       - CASSANDRA_CLUSTER_NAME=HCD_Cluster
       - CASSANDRA_DC=datacenter1
       - CASSANDRA_RACK=rack1
-      - CASSANDRA_SEEDS=hcd-node1
+      - CASSANDRA_SEEDS=hcd-node
       - CASSANDRA_ENDPOINT_SNITCH=GossipingPropertyFileSnitch
       - MAX_HEAP_SIZE=1G
       - HEAP_NEWSIZE=256M
     volumes:
-      - hcd-node1-data:/var/lib/cassandra
+      - hcd-node-data:/var/lib/cassandra
     healthcheck:
       test: ["CMD-SHELL", "cqlsh -e 'describe keyspaces' || exit 1"]
       interval: 15s
@@ -89,7 +89,7 @@ services:
     working_dir: /scripts
     command: ["tail", "-f", "/dev/null"]  # Keep container running
     depends_on:
-      dse-node1:
+      dse-node:
         condition: service_healthy
 
   # Monitoring - Prometheus
@@ -121,8 +121,12 @@ services:
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=admin
       - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_PATHS_PROVISIONING=/etc/grafana/provisioning
     volumes:
       - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana-provisioning/dashboards:/etc/grafana/provisioning/dashboards
+      - ./monitoring/grafana-provisioning/datasources:/etc/grafana/provisioning/datasources
+      - ./monitoring/grafana-dashboards:/etc/grafana/provisioning/dashboards/zdm
     depends_on:
       - prometheus
     mem_limit: 512m
@@ -143,10 +147,40 @@ services:
     working_dir: /workspace
     command: ["tail", "-f", "/dev/null"]  # Keep container running
     depends_on:
-      - dse-node1
-      - hcd-node1
+      - dse-node
+      - hcd-node
     mem_limit: 2g
     cpus: 1.0
+
+  # Spark with CDM for data migration
+  spark-cdm:
+    image: datastax/cassandra-data-migrator:latest
+    platform: linux/amd64  # ZDM Proxy is x86_64; works via Rosetta 2 on Apple Silicon
+    container_name: spark-cdm
+    hostname: spark-cdm
+    networks:
+      - cassandra-migration
+    environment:
+      - SPARK_MODE=master
+      - SPARK_MASTER_HOST=spark-cdm
+      - SPARK_MASTER_PORT=7077
+      - SPARK_MASTER_WEBUI_PORT=8080
+    volumes:
+      - ./cdm-config:/app/config
+      - ./cdm-logs:/app/logs
+      - ./data:/app/data
+    ports:
+      - "8080:8080"   # Spark Master UI
+      - "7077:7077"   # Spark Master
+      - "4040:4040"   # Spark Application UI
+    command: tail -f /dev/null
+    depends_on:
+      dse-node:
+        condition: service_healthy
+      hcd-node:
+        condition: service_healthy
+    mem_limit: 3g
+    cpus: 2.0
 
   # ZDM Proxy (Zero Downtime Migration)
   zdm-proxy:
@@ -164,9 +198,9 @@ services:
     environment:
       - ZDM_CONFIG_FILE=/config/zdm-config.yml
     depends_on:
-      dse-node1:
+      dse-node:
         condition: service_healthy
-      hcd-node1:
+      hcd-node:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:14001/health || exit 1"]
@@ -185,8 +219,8 @@ networks:
         - subnet: 172.20.0.0/16
 
 volumes:
-  dse-node1-data:
-  hcd-node1-data:
+  dse-node-data:
+  hcd-node-data:
   prometheus-data:
   grafana-data:
 

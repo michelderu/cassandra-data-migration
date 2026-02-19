@@ -16,7 +16,7 @@ echo "ZDM Proxy (DSE): ${PROXY_TIME}ms for 100 queries"
 echo "Testing direct reads from DSE..."
 START=$(date +%s%N)
 for i in {1..100}; do
-  cqlsh dse-node1 -e "SELECT * FROM training.users LIMIT 10;" > /dev/null 2>&1
+  cqlsh dse-node -e "SELECT * FROM training.users LIMIT 10;" > /dev/null 2>&1
 done
 END=$(date +%s%N)
 DSE_TIME=$(( (END - START) / 1000000 ))
@@ -26,7 +26,7 @@ echo "Direct DSE: ${DSE_TIME}ms for 100 queries"
 echo "Testing direct reads from HCD..."
 START=$(date +%s%N)
 for i in {1..100}; do
-  cqlsh hcd-node1 -e "SELECT * FROM training.users LIMIT 10;" > /dev/null 2>&1
+  cqlsh hcd-node -e "SELECT * FROM training.users LIMIT 10;" > /dev/null 2>&1
 done
 END=$(date +%s%N)
 HCD_TIME=$(( (END - START) / 1000000 ))

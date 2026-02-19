@@ -47,39 +47,29 @@ Cassandra Data Migrator (CDM) is an Apache Spark-based tool designed for large-s
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│              Apache Spark Cluster                    │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐         │
-│  │  Driver  │  │ Worker 1 │  │ Worker 2 │         │
-│  │   (CDM)  │  │          │  │          │         │
-│  └────┬─────┘  └────┬─────┘  └────┬─────┘         │
-└───────┼─────────────┼─────────────┼────────────────┘
-        │             │             │
-        │             │             │
-        ▼             ▼             ▼
-┌─────────────────────────────────────────────────────┐
-│              Source DSE Cluster                      │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐         │
-│  │  Node 1  │  │  Node 2  │  │  Node 3  │         │
-│  └──────────┘  └──────────┘  └──────────┘         │
+│              Source DSE Cluster                     │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐           │
+│  │  Node 1  │  │  Node 2  │  │  Node 3  │           │
+│  └──────────┘  └──────────┘  └──────────┘           │
 └─────────────────────────────────────────────────────┘
         │             │             │
         │   Read Data │             │
         ▼             ▼             ▼
 ┌─────────────────────────────────────────────────────┐
-│         Spark Processing & Transformation            │
-│  - Read from source                                  │
-│  - Transform (optional)                              │
-│  - Validate                                          │
-│  - Write to target                                   │
+│         Spark Processing & Transformation           │
+│  - Read from source                                 │
+│  - Transform (optional)                             │
+│  - Validate                                         │
+│  - Write to target                                  │
 └─────────────────────────────────────────────────────┘
         │             │             │
         │  Write Data │             │
         ▼             ▼             ▼
 ┌─────────────────────────────────────────────────────┐
-│              Target HCD Cluster                      │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐         │
-│  │  Node 1  │  │  Node 2  │  │  Node 3  │         │
-│  └──────────┘  └──────────┘  └──────────┘         │
+│              Target HCD Cluster                     │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐           │
+│  │  Node 1  │  │  Node 2  │  │  Node 3  │           │
+│  └──────────┘  └──────────┘  └──────────┘           │
 └─────────────────────────────────────────────────────┘
 ```
 
@@ -128,8 +118,7 @@ Cassandra Data Migrator (CDM) is an Apache Spark-based tool designed for large-s
 
 ```bash
 # Download CDM JAR
-wget https://github.com/datastax/cassandra-data-migrator/releases/download/v4.0.0/cassandra-data-migrator-4.0.0.jar
-
+wget https://github-registry-files.githubusercontent.com/538937619/ffa9af80-ea71-11f0-87fb-f5d6da70f424?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAVCODYLSA53PQK4ZA%2F20260219%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260219T143142Z&X-Amz-Expires=300&X-Amz-Signature=829b98c4fa80e124ecbf1c973186ed920db83e6050e9747c334f22c45833d124&X-Amz-SignedHeaders=host&response-content-disposition=filename%3Dcassandra-data-migrator-5.7.2.jar&response-content-type=application%2Foctet-stream
 # Verify download
 ls -lh cassandra-data-migrator-4.0.0.jar
 ```

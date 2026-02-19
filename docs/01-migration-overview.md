@@ -359,5 +359,5 @@ Protocol Version: V5
 **Related Documents:**
 - [Native Tooling Options](02-native-tooling.md)
 - [DSE-Specific Tooling](03-dse-tooling.md)
-- [ZDM Approach](04-zdm-approach.md)
-- [CDM Approach](05-cdm-approach.md)
+- [CDM Approach](04-cdm-approach.md)
+- [ZDM Approach](05-zdm-approach.md)

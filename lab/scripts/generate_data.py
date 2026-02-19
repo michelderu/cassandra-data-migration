@@ -18,7 +18,7 @@ STATUSES = ['active', 'inactive', 'pending', 'suspended']
 CATEGORIES = ['Electronics', 'Clothing', 'Books', 'Home', 'Sports', 'Toys', 'Food', 'Beauty']
 ACTIVITY_TYPES = ['login', 'logout', 'purchase', 'view_product', 'add_to_cart', 'remove_from_cart']
 
-def connect_to_cluster(host='dse-node1', port=9042):
+def connect_to_cluster(host='dse-node', port=9042):
     """Connect to Cassandra cluster"""
     print(f"Connecting to {host}:{port}...")
     cluster = Cluster([host], port=port)
@@ -177,7 +177,7 @@ def print_statistics(session):
 def main():
     """Main function"""
     # Parse arguments
-    host = sys.argv[1] if len(sys.argv) > 1 else 'dse-node1'
+    host = sys.argv[1] if len(sys.argv) > 1 else 'dse-node'
     
     # Connect to cluster
     cluster, session = connect_to_cluster(host)

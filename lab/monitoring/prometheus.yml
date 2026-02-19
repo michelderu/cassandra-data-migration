@@ -14,17 +14,13 @@ scrape_configs:
   # DSE JMX metrics (if exposed)
   - job_name: 'dse-cluster'
     static_configs:
-      - targets: 
-        - 'dse-node1:7199'
-        - 'dse-node2:7199'
-        - 'dse-node3:7199'
+      - targets:
+        - 'dse-node:7199'
 
   # HCD JMX metrics (if exposed)
   - job_name: 'hcd-cluster'
     static_configs:
       - targets:
-        - 'hcd-node1:7199'
-        - 'hcd-node2:7199'
-        - 'hcd-node3:7199'
+        - 'hcd-node:7199'
 
 # Made with Bob

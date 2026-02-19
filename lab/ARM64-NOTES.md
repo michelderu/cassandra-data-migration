@@ -77,10 +77,10 @@ docker-compose ps
 
 ```bash
 # Check DSE cluster status
-docker exec dse-node1 nodetool status
+docker exec dse-node nodetool status
 
 # Check HCD cluster status
-docker exec hcd-node1 nodetool status
+docker exec hcd-node nodetool status
 
 # Check ZDM Proxy health
 curl http://localhost:14001/health
@@ -266,8 +266,8 @@ docker-compose up -d
 watch docker-compose ps
 
 # Step 4: Verify everything is running
-docker exec dse-node1 nodetool status
-docker exec hcd-node1 nodetool status
+docker exec dse-node nodetool status
+docker exec hcd-node nodetool status
 curl http://localhost:14001/health
 
 # Step 5: Start with Exercise 1!
