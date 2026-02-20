@@ -193,10 +193,3 @@ By completing this training, you will:
 ## License
 
 This training material is provided for educational purposes.
-
-## Version
-
-- **Training Version**: 1.0
-- **Last Updated**: 2026-02-16
-- **Source DSE Version**: 5.1.x
-- **Target HCD Version**: 1.0.x
