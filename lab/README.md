@@ -103,47 +103,145 @@ exit
 
 ## Lab Architecture
 
+```mermaid
+graph TB
+    subgraph "Application Layer"
+        APP[Application<br/>:9044 via ZDM<br/>:9042 direct to DSE<br/>:9043 direct to HCD]
+    end
+
+    subgraph "Docker Network - 172.20.0.0/16"
+        subgraph "Source Cluster"
+            DSE[DSE Node<br/>dse-node<br/>CQL: 9042<br/>JMX: 7199]
+        end
+
+        subgraph "Zero Downtime Migration"
+            ZDM[ZDM Proxy<br/>zdm-proxy<br/>CQL: 9044<br/>Metrics: 14001]
+        end
+
+        subgraph "Target Cluster"
+            HCD[HCD Node<br/>hcd-node<br/>CQL: 9043<br/>JMX: 7200]
+        end
+
+        subgraph "Historical Data Migration Options"
+            TOOLS[Migration Tools Container]
+            
+            subgraph "Option 1: Native Tooling"
+                SSTABLE[sstableloader]
+                COPY[COPY Command]
+            end
+            
+            subgraph "Option 2: DSBulk"
+                DSBULK[DSBulk<br/>Export/Import]
+            end
+            
+            subgraph "Option 3: CDM"
+                CDM[Cassandra Data Migrator<br/>Spark-based<br/>Cluster-to-Cluster]
+            end
+        end
+
+        subgraph "Monitoring & Observability"
+            PROM[Prometheus<br/>:9090]
+            GRAF[Grafana<br/>:3000<br/>Pre-configured Dashboards]
+        end
+    end
+
+    %% Application connections
+    APP -.->|Phase 1: Direct| DSE
+    APP ==>|Phase 2: Via Proxy| ZDM
+    APP -.->|Phase 3: Direct| HCD
+
+    %% ZDM Proxy connections
+    ZDM -->|Primary Reads| DSE
+    ZDM -->|Async Dual Writes| DSE
+    ZDM -->|Async Dual Writes| HCD
+    ZDM -.->|Gradual Cutover| HCD
+
+    %% Historical data migration paths
+    DSE -->|Option 1| SSTABLE
+    DSE -->|Option 2| DSBULK
+    DSE ==>|Option 3: Recommended| CDM
+    
+    SSTABLE -->|Load SSTables| HCD
+    DSBULK -->|Bulk Import| HCD
+    CDM ==>|Direct Migration| HCD
+
+    %% Monitoring connections
+    DSE -.->|Metrics| PROM
+    HCD -.->|Metrics| PROM
+    ZDM -->|Metrics| PROM
+    PROM -->|Data Source| GRAF
+
+    %% Styling
+    classDef source fill:#e1f5ff,stroke:#0066cc,stroke-width:2px
+    classDef target fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
+    classDef proxy fill:#fff3e0,stroke:#f57c00,stroke-width:3px
+    classDef migration fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    classDef monitoring fill:#fce4ec,stroke:#c2185b,stroke-width:2px
+    classDef app fill:#e0f2f1,stroke:#00695c,stroke-width:2px
+    classDef recommended fill:#c8e6c9,stroke:#1b5e20,stroke-width:3px
+
+    class DSE source
+    class HCD target
+    class ZDM proxy
+    class SSTABLE,COPY,DSBULK,TOOLS migration
+    class CDM recommended
+    class PROM,GRAF monitoring
+    class APP app
 ```
-┌─────────────────────────────────────────────────────────┐
-│                    Docker Network                        │
-│                  (172.20.0.0/16)                        │
-│                                                          │
-│  ┌────────────────────────────────────────────────┐    │
-│  │         Source Cluster (Cassandra/DSE)         │    │
-│  │  ┌──────────┐                                  │    │
-│  │  │dse-node  │                                  │    │
-│  │  │  :9042   │                                  │    │
-│  │  └──────────┘                                  │    │
-│  └────────────────────────────────────────────────┘    │
-│                          │                              │
-│                          │                              │
-│  ┌────────────────────────────────────────────────┐    │
-│  │              ZDM Proxy                         │    │
-│  │         ┌──────────────┐                       │    │
-│  │         │  zdm-proxy   │                       │    │
-│  │         │    :9044     │                       │    │
-│  │         │  :14001      │                       │    │
-│  │         └──────────────┘                       │    │
-│  └────────────────────────────────────────────────┘    │
-│                          │                              │
-│                          │                              │
-│  ┌────────────────────────────────────────────────┐    │
-│  │         HCD Cluster (Target)                   │    │
-│  │  ┌──────────┐                                  │    │
-│  │  │hcd-node  │                                  │    │
-│  │  │  :9043   │                                  │    │
-│  │  └──────────┘                                  │    │
-│  └────────────────────────────────────────────────┘    │
-│                                                          │
-│  ┌────────────────────────────────────────────────┐    │
-│  │         Monitoring & Tools                     │    │
-│  │  ┌──────────┐ ┌──────────┐ ┌──────────┐      │    │
-│  │  │Prometheus│ │ Grafana  │ │  Tools   │      │    │
-│  │  │  :9090   │ │  :3000   │ │Container │      │    │
-│  │  └──────────┘ └──────────┘ └──────────┘      │    │
-│  └────────────────────────────────────────────────┘    │
-└─────────────────────────────────────────────────────────┘
-```
+
+### Architecture Components
+
+#### 1. **Source Cluster (DSE)**
+- Single DSE node running on port 9042
+- Supports DSE 5.1, 6.8, 6.9 or Cassandra 3.11/4.0/4.1
+- JMX monitoring on port 7199
+
+#### 2. **Target Cluster (HCD)**
+- Single HCD node (Cassandra 4.1) on port 9043
+- Production-ready Cassandra distribution
+- JMX monitoring on port 7200
+
+#### 3. **Zero Downtime Migration (ZDM) Proxy**
+- Transparent proxy on port 9044
+- Dual-write capability to both clusters
+- Gradual traffic cutover from source to target
+- Metrics endpoint on port 14001
+
+#### 4. **Historical Data Migration Options**
+
+**Option 1: Native Tooling** (Basic)
+- `sstableloader`: Load SSTables directly
+- `COPY` command: CSV-based export/import
+- Best for: Small datasets, simple schemas
+
+**Option 2: DSBulk** (Intermediate)
+- DataStax Bulk Loader
+- Parallel export/import operations
+- Best for: Medium datasets, better performance
+
+**Option 3: Cassandra Data Migrator (CDM)** ⭐ **Recommended**
+- Spark-based distributed migration
+- Direct cluster-to-cluster transfer
+- Built-in validation with DiffData
+- Best for: Large datasets, production migrations
+
+#### 5. **Application Integration**
+- **Phase 1**: Direct connection to DSE (:9042)
+- **Phase 2**: Connection via ZDM Proxy (:9044) with dual-writes
+- **Phase 3**: Direct connection to HCD (:9043) after cutover
+
+#### 6. **Monitoring & Observability**
+- **Prometheus** (:9090): Metrics collection and storage
+- **Grafana** (:3000): Pre-configured dashboards for ZDM, clusters, and system metrics
+
+### Migration Flow
+
+1. **Setup Phase**: Deploy all components in Docker network
+2. **Historical Data Migration**: Use CDM (recommended) or other tools to migrate existing data
+3. **ZDM Phase**: Route application through proxy for dual-writes
+4. **Validation Phase**: Verify data consistency between clusters
+5. **Cutover Phase**: Gradually shift reads to target cluster
+6. **Completion**: Direct application to HCD, decommission DSE
 
 ## Port Mappings
 
