@@ -1,37 +1,36 @@
 # ZDM Proxy Configuration for Lab Environment
+# Based on ZDM Proxy 2.4.1 documentation
+# https://github.com/datastax/zdm-proxy
 
 # Origin cluster (Source: Cassandra or DSE)
-# Supports: Cassandra 3.11/4.0/4.1 or DSE 5.1/6.8/6.9
-origin_contact_points: "dse-node"
+origin_contact_points: dse-node
 origin_port: 9042
-origin_username: "cassandra"
-origin_password: "cassandra"
-origin_local_datacenter: "dc1"
-origin_connection_timeout_ms: 5000
-origin_request_timeout_ms: 12000
+origin_username: cassandra
+origin_password: cassandra
+origin_local_datacenter: dc1
+origin_connection_timeout_ms: 30000
 
 # Target cluster (HCD)
-target_contact_points: "hcd-node"
+target_contact_points: hcd-node
 target_port: 9042
-target_username: "cassandra"
-target_password: "cassandra"
-target_local_datacenter: "datacenter1"
-target_connection_timeout_ms: 5000
-target_request_timeout_ms: 12000
+target_username: cassandra
+target_password: cassandra
+target_local_datacenter: datacenter1
+target_connection_timeout_ms: 30000
 
 # Proxy settings
 proxy_listen_port: 9042
-proxy_listen_address: "0.0.0.0"
+proxy_listen_address: 0.0.0.0
 proxy_max_client_connections: 1000
 proxy_max_stream_ids: 2048
 
 # Read routing configuration
-# Options: PRIMARY_ONLY, DUAL, TARGET_ONLY
-read_mode: "PRIMARY_ONLY"
+# Options: PRIMARY_ONLY, DUAL_ASYNC_ON_SECONDARY, TARGET_ONLY
+read_mode: PRIMARY_ONLY
 
 # Primary cluster
 # Options: ORIGIN, TARGET
-primary_cluster: "ORIGIN"
+primary_cluster: ORIGIN
 
 # Async handshake timeout
 async_handshake_timeout_ms: 4000
@@ -39,9 +38,9 @@ async_handshake_timeout_ms: 4000
 # Metrics
 metrics_enabled: true
 metrics_port: 14001
-metrics_prefix: "zdm"
+metrics_prefix: zdm
 
 # Logging
-log_level: "INFO"
+log_level: INFO
 
 # Made with Bob

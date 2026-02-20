@@ -178,7 +178,7 @@ services:
 
   # ZDM Proxy (Zero Downtime Migration)
   zdm-proxy:
-    image: datastax/zdm-proxy:2.1.0
+    image: datastax/zdm-proxy:2.4.1
     platform: linux/amd64  # ZDM Proxy is x86_64; works via Rosetta 2 on Apple Silicon
     container_name: zdm-proxy
     hostname: zdm-proxy
@@ -189,8 +189,7 @@ services:
       - "14001:14001" # Metrics port
     volumes:
       - ./zdm-config:/config
-    environment:
-      - ZDM_CONFIG_FILE=/config/zdm-config.yml
+    command: ["-config", "/config/zdm-config.yml"]
     depends_on:
       dse-node:
         condition: service_healthy
