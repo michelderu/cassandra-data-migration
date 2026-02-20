@@ -4,6 +4,8 @@
 
 This comprehensive training covers data migration strategies from DataStax Enterprise (DSE) 5.1 to Hyper-Converged Database (HCD) with zero downtime. The training includes theoretical concepts, practical tools comparison, and hands-on lab exercises.
 
+> Official documentation relevant to this training can be found here: https://docs.datastax.com/en/data-migration
+
 ## Migration Architecture
 
 ```mermaid
