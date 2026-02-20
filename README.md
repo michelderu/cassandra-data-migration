@@ -1,4 +1,4 @@
-# DataStax Enterprise 5.1 to HCD Zero-Downtime Migration Training
+# Cassandra/DataStax Enterprise to HCD Zero-Downtime Migration Training
 
 ## Overview
 
