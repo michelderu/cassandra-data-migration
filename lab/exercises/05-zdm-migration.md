@@ -73,8 +73,8 @@ cat zdm-config/zdm-config.yml
 ### Step 3: Test ZDM Proxy Connectivity
 
 ```bash
-# Access migration-tools container
-docker exec -it migration-tools bash
+# Access tools container
+docker exec -it tools bash
 
 # Test connection through ZDM Proxy
 cqlsh zdm-proxy 9042 -e "SELECT cluster_name FROM system.local;"
@@ -98,8 +98,8 @@ The ZDM Proxy is already configured for dual-write mode. This is the "cutting po
 **Important:** We enable dual-writes BEFORE migrating historical data. This ensures the Target never falls behind while we backfill old data.
 
 ```bash
-# Access migration-tools container
-docker exec -it migration-tools bash
+# Access tools container
+docker exec -it tools bash
 
 # Insert test data through proxy
 cqlsh zdm-proxy 9042 -e "
@@ -125,7 +125,7 @@ exit
 ### Step 5: Bulk Write Test
 
 ```bash
-# Still in migration-tools container
+# Still in tools container
 
 # The test script is provided at /scripts/test_dual_write.py
 # Run the bulk write test
@@ -207,8 +207,8 @@ curl -s http://localhost:14001/metrics | grep "zdm_proxy_inflight_requests_total
 Now that dual-writes are active, we can safely migrate historical data from DSE to HCD. Any data updated during this process will be handled correctly by the dual-write mechanism.
 
 ```bash
-# Access migration-tools container
-docker exec -it migration-tools bash
+# Access tools container
+docker exec -it tools bash
 
 # Export data from DSE
 echo "Exporting historical data from DSE..."
@@ -302,8 +302,8 @@ docker exec zdm-proxy cat /config/zdm-config.yml | grep -A 2 "read_mode"
 Before enabling dual reads, verify that both clusters have consistent data:
 
 ```bash
-# Access migration-tools container
-docker exec -it migration-tools bash
+# Access tools container
+docker exec -it tools bash
 
 # Run the validation script
 python3 /scripts/validate_zdm_migration.py
@@ -314,8 +314,8 @@ exit
 ### Step 10: Test Read Performance
 
 ```bash
-# Access migration-tools container
-docker exec -it migration-tools bash
+# Access tools container
+docker exec -it tools bash
 
 # Run the read performance test script
 /scripts/test_read_performance.sh
@@ -328,8 +328,8 @@ exit
 Simulate realistic application traffic through the ZDM Proxy to test dual-write and dual-read functionality:
 
 ```bash
-# Access migration-tools container
-docker exec -it migration-tools bash
+# Access tools container
+docker exec -it tools bash
 
 # Run the application simulation script (default: 30 seconds)
 python3 /scripts/simulate_app_traffic.py
@@ -419,7 +419,7 @@ docker exec hcd-node nodetool tablestats training.users | grep -E "Table:|Number
 
 ```bash
 # Final validation before cutover
-docker exec -it migration-tools bash
+docker exec -it tools bash
 
 # Run final consistency check
 python3 /scripts/validate_zdm_migration.py
@@ -445,8 +445,8 @@ In a real migration, you would:
 For this lab, we'll simulate by testing direct HCD connections:
 
 ```bash
-# Access migration-tools container
-docker exec -it migration-tools bash
+# Access tools container
+docker exec -it tools bash
 
 # Test direct connection to HCD
 cqlsh hcd-node -e "
@@ -483,8 +483,8 @@ docker logs zdm-proxy
 cat zdm-config/zdm-config.yml
 
 # Check if clusters are accessible
-docker exec migration-tools ping dse-node
-docker exec migration-tools ping hcd-node
+docker exec tools ping dse-node
+docker exec tools ping hcd-node
 
 # Restart proxy
 docker-compose restart zdm-proxy
@@ -500,8 +500,8 @@ docker logs zdm-proxy | grep -i error
 curl http://localhost:14001/metrics | grep target_requests
 
 # Test connectivity
-docker exec migration-tools cqlsh dse-node -e "SELECT COUNT(*) FROM training.users;"
-docker exec migration-tools cqlsh hcd-node -e "SELECT COUNT(*) FROM training.users;"
+docker exec tools cqlsh dse-node -e "SELECT COUNT(*) FROM training.users;"
+docker exec tools cqlsh hcd-node -e "SELECT COUNT(*) FROM training.users;"
 ```
 
 ### Issue: High latency through proxy
@@ -515,7 +515,7 @@ docker exec dse-node nodetool proxyhistograms
 docker exec hcd-node nodetool proxyhistograms
 
 # Verify network
-docker exec migration-tools ping -c 5 zdm-proxy
+docker exec tools ping -c 5 zdm-proxy
 ```
 
 ## Success Criteria

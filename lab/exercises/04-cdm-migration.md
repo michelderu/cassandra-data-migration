@@ -193,7 +193,7 @@ Use the provided validation script for a comprehensive check:
 
 ```bash
 # Run the validation script
-docker exec migration-tools python3 /scripts/validate_migration.py
+docker exec tools python3 /scripts/validate_migration.py
 
 # Expected output shows count and sample validation for all tables
 ```
@@ -391,7 +391,7 @@ ls -lh cdm-logs/
 
 ```bash
 # Compare final counts
-docker exec tools-node python3 /scripts/validate_migration.py
+docker exec tools python3 /scripts/validate_migration.py
 ```
 
 ### Step 3: Archive Logs (Optional)

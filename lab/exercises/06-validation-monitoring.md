@@ -29,8 +29,8 @@ This exercise focuses on validation and monitoring techniques essential for ensu
 ### Step 1: Row Count Validation
 
 ```bash
-# Access migration-tools container
-docker exec -it migration-tools bash
+# Access tools container
+docker exec -it tools bash
 
 # Create comprehensive row count validation script
 cat > /scripts/validate_row_counts.sh << 'EOF'
@@ -84,7 +84,7 @@ chmod +x /scripts/validate_row_counts.sh
 ### Step 2: Sample Data Validation
 
 ```bash
-# Still in migration-tools container
+# Still in tools container
 
 # Create sample data validation script
 cat > /scripts/validate_sample_data.py << 'EOF'
@@ -181,7 +181,7 @@ python3 /scripts/validate_sample_data.py
 ### Step 3: Schema Validation
 
 ```bash
-# Still in migration-tools container
+# Still in tools container
 
 # Create schema validation script
 cat > /scripts/validate_schema.sh << 'EOF'
@@ -244,7 +244,7 @@ exit
 
 ```bash
 # Create cluster health monitoring script
-docker exec -it migration-tools bash
+docker exec -it tools bash
 
 cat > /scripts/monitor_cluster_health.sh << 'EOF'
 #!/bin/bash
@@ -293,7 +293,7 @@ chmod +x /scripts/monitor_cluster_health.sh
 ### Step 5: Performance Metrics Collection
 
 ```bash
-# Still in migration-tools container
+# Still in tools container
 
 cat > /scripts/collect_performance_metrics.sh << 'EOF'
 #!/bin/bash
@@ -406,8 +406,8 @@ curl http://localhost:9090/api/v1/targets | jq '.data.activeTargets[] | select(.
 ### Step 9: Continuous Validation Script
 
 ```bash
-# Access migration-tools container
-docker exec -it migration-tools bash
+# Access tools container
+docker exec -it tools bash
 
 cat > /scripts/continuous_validation.sh << 'EOF'
 #!/bin/bash
@@ -504,8 +504,8 @@ echo "Alert rules created"
 ### Step 11: Generate Migration Report
 
 ```bash
-# Access migration-tools container
-docker exec -it migration-tools bash
+# Access tools container
+docker exec -it tools bash
 
 cat > /scripts/generate_migration_report.sh << 'EOF'
 #!/bin/bash
@@ -581,7 +581,7 @@ docker exec dse-node nodetool repair training
 docker exec hcd-node nodetool repair training
 
 # Re-run validation
-docker exec migration-tools /scripts/validate_row_counts.sh
+docker exec tools /scripts/validate_row_counts.sh
 ```
 
 ### Issue: Prometheus not scraping
@@ -641,7 +641,7 @@ You have completed all lab exercises! You now have:
 pkill -f continuous_validation
 
 # Archive reports
-docker exec migration-tools tar -czf /exports/migration_reports.tar.gz /exports/*.txt
+docker exec tools tar -czf /exports/migration_reports.tar.gz /exports/*.txt
 
 # Optional: Reset environment
 cd lab

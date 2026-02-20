@@ -77,21 +77,6 @@ services:
     mem_limit: 2g
     cpus: 1.0
 
-  # Data Generator (for creating test data)
-  data-generator:
-    image: python:3.11-slim
-    container_name: data-generator
-    networks:
-      - cassandra-migration
-    volumes:
-      - ./scripts:/scripts
-      - ./data:/data
-    working_dir: /scripts
-    command: ["tail", "-f", "/dev/null"]  # Keep container running
-    depends_on:
-      dse-node:
-        condition: service_healthy
-
   # Monitoring - Prometheus
   prometheus:
     image: prom/prometheus:latest
@@ -131,13 +116,13 @@ services:
       - prometheus
     mem_limit: 512m
 
-  # Tools Container (with migration tools pre-installed)
-  migration-tools:
+  # Tools Container (with migration and data generation tools)
+  tools:
     build:
       context: ./tools
       dockerfile: Dockerfile
-    container_name: migration-tools
-    hostname: migration-tools
+    container_name: tools
+    hostname: tools
     networks:
       - cassandra-migration
     volumes:

@@ -30,8 +30,8 @@ This exercise demonstrates using native Cassandra tools (COPY command and SSTabl
 ### Step 1: Export Data from DSE Using COPY
 
 ```bash
-# Access the migration tools container
-docker exec -it migration-tools bash
+# Access the tools container
+docker exec -it tools bash
 
 # Create export directory
 mkdir -p /exports/copy
@@ -71,7 +71,7 @@ orders.csv: ~2001 lines (2000 data + 1 header)
 ### Step 2: Import Data to HCD Using COPY
 
 ```bash
-# Still in migration-tools container
+# Still in tools container
 
 # Import users
 cqlsh hcd-node -e "
@@ -102,7 +102,7 @@ Use the validation script to verify the migration:
 
 ```bash
 # Run comprehensive validation
-docker exec data-generator bash -c "
+docker exec tools bash -c "
 pip install -q cassandra-driver && \
 python3 /scripts/validate_migration.py
 "
@@ -247,9 +247,9 @@ docker exec hcd-node nodetool repair training
 Use the comprehensive validation script:
 
 ```bash
-# Run the validation script from the data-generator container
+# Run the validation script from the tools container
 # This script validates all tables with row counts and sample data checks
-docker exec data-generator bash -c "
+docker exec tools bash -c "
 pip install -q cassandra-driver && \
 python3 /scripts/validate_migration.py
 "
@@ -298,7 +298,7 @@ Validating table: user_activity
 
 ```bash
 # Increase timeout
-docker exec -it migration-tools bash
+docker exec -it tools bash
 
 cqlsh dse-node --request-timeout=300 -e "
 COPY training.users TO '/exports/copy/users.csv' 
@@ -312,7 +312,7 @@ exit
 
 ```bash
 # Reduce page size
-docker exec -it migration-tools bash
+docker exec -it tools bash
 
 cqlsh dse-node -e "
 COPY training.users TO '/exports/copy/users.csv' 
@@ -409,7 +409,7 @@ Proceed to [Exercise 3: DSBulk Migration](03-dsbulk-migration.md) to learn about
 
 ```bash
 # Remove exported files
-docker exec migration-tools rm -rf /exports/copy/*
+docker exec tools rm -rf /exports/copy/*
 
 # Clear snapshots
 docker exec dse-node nodetool clearsnapshot --all

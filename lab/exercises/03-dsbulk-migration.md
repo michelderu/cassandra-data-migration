@@ -39,8 +39,8 @@ TRUNCATE training.user_activity
 ### Step 1: Verify DSBulk Installation
 
 ```bash
-# Access migration-tools container (DSBulk should be pre-installed)
-docker exec -it migration-tools bash
+# Access tools container (DSBulk should be pre-installed)
+docker exec -it tools bash
 
 # Verify DSBulk is available
 which dsbulk
@@ -58,7 +58,7 @@ dsbulk --version
 ### Step 2: Create DSBulk Configuration
 
 ```bash
-# Still in migration-tools container
+# Still in tools container
 
 # Create configuration directory
 mkdir -p /config/dsbulk
@@ -101,7 +101,7 @@ mkdir -p /exports/logs
 ### Step 3: Export Users Table
 
 ```bash
-# Still in migration-tools container
+# Still in tools container
 
 # Create export directory
 mkdir -p /exports/dsbulk
@@ -438,10 +438,10 @@ Proceed to [Exercise 4: Cassandra Data Migrator (CDM)](04-cdm-migration.md) to l
 
 ```bash
 # Remove export files
-docker exec migration-tools rm -rf /exports/dsbulk/*
+docker exec tools rm -rf /exports/dsbulk/*
 
 # Remove logs
-docker exec migration-tools rm -rf /exports/logs/*
+docker exec tools rm -rf /exports/logs/*
 
 # Truncate HCD tables if needed
 docker exec hcd-node cqlsh -e "

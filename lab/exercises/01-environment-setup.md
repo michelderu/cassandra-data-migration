@@ -37,7 +37,7 @@ docker-compose up -d
 # ...
 ```
 
-**Wait Time:** 3-5 minutes for all services to start (and migration-tools to build)
+**Wait Time:** 3-5 minutes for all services to start (and tools container to build)
 
 ### Step 2: Monitor Startup Progress
 
@@ -177,8 +177,8 @@ docker exec hcd-node cqlsh -e "DESC KEYSPACE training;"
 ### Step 8: Generate Sample Data
 
 ```bash
-# Access data generator container
-docker exec -it data-generator bash
+# Access tools container
+docker exec -it tools bash
 
 # Install cassandra-driver if not already installed
 pip install cassandra-driver
@@ -275,7 +275,7 @@ curl http://localhost:3000/api/health
 
 ```bash
 # Access tools container
-docker exec -it migration-tools bash
+docker exec -it tools bash
 
 # Verify tools are available
 which cqlsh
@@ -364,10 +364,10 @@ docker exec dse-node nodetool status
 docker exec dse-node cqlsh -e "DESC KEYSPACE training;"
 
 # Verify connectivity
-docker exec data-generator ping dse-node
+docker exec tools ping dse-node
 
 # Check Python dependencies
-docker exec data-generator pip list | grep cassandra
+docker exec tools pip list | grep cassandra
 ```
 
 ## Success Criteria
