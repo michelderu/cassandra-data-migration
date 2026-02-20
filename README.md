@@ -4,6 +4,82 @@
 
 This comprehensive training covers data migration strategies from DataStax Enterprise (DSE) 5.1 to Hyper-Converged Database (HCD) with zero downtime. The training includes theoretical concepts, practical tools comparison, and hands-on lab exercises.
 
+## Migration Architecture
+
+```mermaid
+graph LR
+    subgraph "Source"
+        DSE[DSE 5.1/6.x<br/>Cassandra 3.x/4.x]
+    end
+
+    subgraph "Migration Approaches"
+        direction TB
+        HIST[Historical Data Migration]
+        ZDM[Zero Downtime Migration]
+        
+        subgraph "Historical Options"
+            NATIVE[Native Tools<br/>sstableloader, COPY]
+            DSBULK[DSBulk<br/>Bulk Loader]
+            CDM[CDM ⭐<br/>Spark-based]
+        end
+    end
+
+    subgraph "Target"
+        HCD[HCD<br/>Cassandra 4.1+]
+    end
+
+    subgraph "Application"
+        APP[Your Application]
+    end
+
+    %% Historical migration paths
+    DSE -->|Offline/Batch| NATIVE
+    DSE -->|Offline/Batch| DSBULK
+    DSE ==>|Recommended| CDM
+    
+    NATIVE -->|Load| HCD
+    DSBULK -->|Import| HCD
+    CDM ==>|Direct Transfer| HCD
+
+    %% ZDM path
+    APP -->|Phase 1| DSE
+    APP -.->|Phase 2: Dual Write| ZDM
+    ZDM -->|Primary| DSE
+    ZDM -->|Secondary| HCD
+    APP -.->|Phase 3| HCD
+
+    %% Styling
+    classDef source fill:#e1f5ff,stroke:#0066cc,stroke-width:2px
+    classDef target fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
+    classDef migration fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+    classDef recommended fill:#c8e6c9,stroke:#1b5e20,stroke-width:3px
+    classDef app fill:#e0f2f1,stroke:#00695c,stroke-width:2px
+
+    class DSE source
+    class HCD target
+    class NATIVE,DSBULK,HIST,ZDM migration
+    class CDM recommended
+    class APP app
+```
+
+### Migration Strategy Overview
+
+**Historical Data Migration** (One-time bulk transfer)
+- **Native Tools**: Basic sstableloader and COPY commands for small datasets
+- **DSBulk**: DataStax Bulk Loader for medium-sized datasets with better performance
+- **CDM** ⭐: Cassandra Data Migrator (Spark-based) - **Recommended** for production migrations
+
+**Zero Downtime Migration** (Live traffic cutover)
+- **ZDM Proxy**: Transparent proxy enabling dual-writes and gradual traffic cutover
+- Supports phased migration: Direct → Proxy (dual-write) → Target
+
+**Typical Migration Flow**:
+1. Migrate historical data using CDM (offline/batch)
+2. Deploy ZDM Proxy for new writes (dual-write mode)
+3. Validate data consistency
+4. Gradually cutover reads to target
+5. Decommission source cluster
+
 ## Training Structure
 
 ### 1. Theory & Strategy
