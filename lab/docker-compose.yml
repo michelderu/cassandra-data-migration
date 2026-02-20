@@ -29,7 +29,7 @@ services:
       - "7199:7199"   # JMX
     environment:
       DS_LICENSE: accept  # Only needed for DSE; ignored by Cassandra
-      CLUSTER_NAME: Source_Cluster
+      CLUSTER_NAME: DSE_Cluster
       DC: dc1
       RACK: Rack1
       SEEDS: dse-node
