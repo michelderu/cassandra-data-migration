@@ -14,7 +14,7 @@
 
 ## Overview
 
-Migrating from DSE 5.1 to HCD involves numerous challenges and risks that must be carefully managed. This document provides a comprehensive overview of potential issues and strategies to mitigate them.
+Migrating from Apache Cassandra or DSE to HCD involves numerous challenges and risks that must be carefully managed. This document provides a comprehensive overview of potential issues and strategies to mitigate them.
 
 ### Risk Categories
 
@@ -32,14 +32,15 @@ Migrating from DSE 5.1 to HCD involves numerous challenges and risks that must b
 ### 1. Version Compatibility
 
 **Challenge:**
-DSE 5.1 is based on Cassandra 3.11, while HCD uses Cassandra 4.x or 5.x. Version differences can cause compatibility issues.
+Source clusters (Cassandra or DSE) may be based on different versions than HCD, which uses Cassandra 4.x or 5.x. Version differences can cause compatibility issues.
 
 **Specific Issues:**
 ```
-DSE 5.1 (Cassandra 3.11)
-├─ CQL Version: 3.4.4
-├─ Protocol Version: V4
-├─ SSTable Format: mc
+Source Versions:
+├─ Cassandra 3.11: CQL 3.4.4, Protocol V4, SSTable format 'mc'
+├─ Cassandra 4.0/4.1: CQL 3.4.5, Protocol V5, SSTable format 'na/nb'
+├─ DSE 5.1/6.8 (based on C* 3.11): CQL 3.4.4, Protocol V4, SSTable format 'mc'
+├─ DSE 6.9 (based on C* 4.0): CQL 3.4.5, Protocol V5, SSTable format 'me'
 └─ System Tables: DSE-specific
 
 HCD 1.0 (Cassandra 4.x/5.x)
@@ -574,8 +575,8 @@ groups:
 
 **Driver Versions:**
 ```
-DSE 5.1 Compatible:
-- Java Driver: 3.x
+DSE Compatible:
+- Java Driver: 3.x (DSE 5.1/6.8) or 4.x (DSE 6.9)
 - Python Driver: 3.x
 - Node.js Driver: 3.x
 

@@ -100,7 +100,7 @@ docker-compose ps
 
 By completing this training, you will:
 
-- ✅ Understand DSE 5.1 to HCD migration fundamentals
+- ✅ Understand Cassandra/DSE to HCD migration fundamentals
 - ✅ Evaluate and select appropriate migration tools
 - ✅ Implement zero-downtime migration strategies
 - ✅ Identify and mitigate migration risks

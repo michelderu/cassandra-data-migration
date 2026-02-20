@@ -30,25 +30,15 @@ Native Cassandra/DSE tooling provides built-in capabilities for data migration. 
 
 ### How It Works
 
-```
-┌─────────────────┐
-│  Source DSE     │
-│  SSTables       │
-└────────┬────────┘
-         │
-         │ 1. Export SSTables
-         ▼
-┌─────────────────┐
-│  File System    │
-│  (Staging)      │
-└────────┬────────┘
-         │
-         │ 2. Stream via sstableloader
-         ▼
-┌─────────────────┐
-│  Target HCD     │
-│  Cluster        │
-└─────────────────┘
+```mermaid
+graph TD
+    Source[Source Cluster<br/>SSTables]
+    Source -->|1. Export SSTables| FS[File System<br/>Staging Area]
+    FS -->|2. Stream via sstableloader| Target[Target HCD<br/>Cluster]
+    
+    style Source fill:#fff4e6
+    style FS fill:#f5f5f5
+    style Target fill:#e8f5e9
 ```
 
 ### Prerequisites

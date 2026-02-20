@@ -43,37 +43,41 @@ The Zero Downtime Migration (ZDM) proxy is a purpose-built solution for migratin
 
 ### High-Level Architecture
 
-```
-┌─────────────────────────────────────────────────────────┐
-│                    Application Layer                     │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐             │
-│  │  App 1   │  │  App 2   │  │  App 3   │             │
-│  └────┬─────┘  └────┬─────┘  └────┬─────┘             │
-└───────┼─────────────┼─────────────┼────────────────────┘
-        │             │             │
-        └─────────────┴─────────────┘
-                      │
-        ┌─────────────▼─────────────┐
-        │      ZDM Proxy Layer      │
-        │  ┌─────────────────────┐  │
-        │  │   Proxy Instance    │  │
-        │  │  - Request Router   │  │
-        │  │  - Dual Writer      │  │
-        │  │  - Validator        │  │
-        │  └─────────────────────┘  │
-        └─────────────┬─────────────┘
-                      │
-        ┌─────────────┴─────────────┐
-        │                           │
-        ▼                           ▼
-┌───────────────┐           ┌───────────────┐
-│  Origin DSE   │           │  Target HCD   │
-│   Cluster     │           │   Cluster     │
-│               │           │               │
-│ ┌───┐ ┌───┐  │           │ ┌───┐ ┌───┐  │
-│ │ N │ │ N │  │           │ │ N │ │ N │  │
-│ └───┘ └───┘  │           │ └───┘ └───┘  │
-└───────────────┘           └───────────────┘
+```mermaid
+graph TD
+    subgraph Apps[Application Layer]
+        App1[App 1]
+        App2[App 2]
+        App3[App 3]
+    end
+    
+    subgraph Proxy[ZDM Proxy Layer]
+        ProxyInst[Proxy Instance<br/>- Request Router<br/>- Dual Writer<br/>- Validator]
+    end
+    
+    subgraph Origin[Origin Cluster]
+        ON1[Node 1]
+        ON2[Node 2]
+    end
+    
+    subgraph Target[Target HCD Cluster]
+        TN1[Node 1]
+        TN2[Node 2]
+    end
+    
+    App1 --> ProxyInst
+    App2 --> ProxyInst
+    App3 --> ProxyInst
+    
+    ProxyInst --> ON1
+    ProxyInst --> ON2
+    ProxyInst --> TN1
+    ProxyInst --> TN2
+    
+    style Apps fill:#e1f5ff
+    style Proxy fill:#fff9c4
+    style Origin fill:#fff4e6
+    style Target fill:#e8f5e9
 ```
 
 ### Component Details
@@ -84,8 +88,9 @@ The Zero Downtime Migration (ZDM) proxy is a purpose-built solution for migratin
 - **Consistency Checker**: Validates data consistency
 - **Metrics Collector**: Gathers performance metrics
 
-#### 2. Origin Cluster (DSE 5.1)
+#### 2. Origin Cluster (Source)
 - Source cluster with existing data
+- Supports: Apache Cassandra 3.11/4.0/4.1 or DSE 5.1/6.8/6.9
 - Continues serving traffic during migration
 - Gradually phased out
 

@@ -2,9 +2,9 @@
 
 ## Overview
 
-This lab environment provides a complete setup for practicing DSE 5.1 to HCD migration with zero downtime. It includes:
+This lab environment provides a complete setup for practicing DSE to HCD migration with zero downtime. It includes:
 
-- **DSE 5.1 Cluster** (1 node) - Source cluster
+- **DSE Cluster** (1 node) - Source cluster (supports DSE 5.1, 6.8, 6.9)
 - **HCD Cluster** (1 node) - Target cluster using Cassandra 4.1
 - **ZDM Proxy** - For zero-downtime migration
 - **Migration Tools** - Pre-configured container with all tools
@@ -109,7 +109,7 @@ exit
 │                  (172.20.0.0/16)                        │
 │                                                          │
 │  ┌────────────────────────────────────────────────┐    │
-│  │         DSE 5.1 Cluster (Source)               │    │
+│  │         Source Cluster (Cassandra/DSE)         │    │
 │  │  ┌──────────┐                                  │    │
 │  │  │dse-node  │                                  │    │
 │  │  │  :9042   │                                  │    │
@@ -479,8 +479,8 @@ For issues or questions:
 
 ## Version Information
 
-- **DSE**: 5.1.35
-- **HCD (Cassandra)**: 4.1
+- **Source**: DSE 5.1.35 (default) - configurable to Cassandra 3.11/4.0/4.1 or DSE 5.1.x/6.8.x/6.9.x
+- **Target (HCD)**: Cassandra 4.1
 - **ZDM Proxy**: 2.1.0
 - **Docker Compose**: 3.8
 - **Python**: 3.11

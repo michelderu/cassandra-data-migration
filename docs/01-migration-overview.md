@@ -1,4 +1,4 @@
-# Migration Overview: DSE 5.1 to HCD
+# Migration Overview: DSE to HCD
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -57,7 +57,7 @@ Protocol Version: V5
 
 ### Compatibility Matrix
 
-| Feature | DSE 5.1 | HCD 1.0 | Compatible? | Notes |
+| Feature | Source (Cassandra/DSE) | HCD 1.0 | Compatible? | Notes |
 |---------|---------|---------|-------------|-------|
 | CQL Core | 3.4.4 | 3.4.5+ | ✅ Yes | Backward compatible |
 | Protocol | V4 | V5 | ✅ Yes | V4 supported |
@@ -162,51 +162,37 @@ Protocol Version: V5
 
 #### Pattern 1: Proxy-Based (Recommended)
 
-```
-┌─────────────┐
-│ Application │
-└──────┬──────┘
-       │
-       ▼
-┌─────────────┐
-│  ZDM Proxy  │
-└──────┬──────┘
-       │
-       ├──────────────┬──────────────┐
-       ▼              ▼              ▼
-┌──────────┐   ┌──────────┐   ┌──────────┐
-│ DSE 5.1  │   │ DSE 5.1  │   │ DSE 5.1  │
-│  (Node)  │   │  (Node)  │   │  (Node)  │
-└──────────┘   └──────────┘   └──────────┘
-       │              │              │
-       └──────────────┴──────────────┘
-                      │
-              [Data Validation]
-                      │
-       ┌──────────────┴──────────────┐
-       ▼              ▼              ▼
-┌──────────┐   ┌──────────┐   ┌──────────┐
-│   HCD    │   │   HCD    │   │   HCD    │
-│  (Node)  │   │  (Node)  │   │  (Node)  │
-└──────────┘   └──────────┘   └──────────┘
+```mermaid
+graph TD
+    App[Application] --> Proxy[ZDM Proxy]
+    Proxy --> SN1[Source Node 1]
+    Proxy --> SN2[Source Node 2]
+    Proxy --> SN3[Source Node 3]
+    
+    SN1 -.Data Validation.-> HN1[HCD Node 1]
+    SN2 -.Data Validation.-> HN2[HCD Node 2]
+    SN3 -.Data Validation.-> HN3[HCD Node 3]
+    
+    style Proxy fill:#e1f5ff
+    style SN1 fill:#fff4e6
+    style SN2 fill:#fff4e6
+    style SN3 fill:#fff4e6
+    style HN1 fill:#e8f5e9
+    style HN2 fill:#e8f5e9
+    style HN3 fill:#e8f5e9
 ```
 
 #### Pattern 2: Application Dual-Write
 
-```
-┌─────────────────────────────┐
-│      Application Layer      │
-│  ┌─────────────────────┐   │
-│  │  Dual-Write Logic   │   │
-│  └─────────┬───────────┘   │
-└────────────┼────────────────┘
-             │
-       ┏─────┴─────┓
-       ▼           ▼
-┌──────────┐ ┌──────────┐
-│ DSE 5.1  │ │   HCD    │
-│ Cluster  │ │ Cluster  │
-└──────────┘ └──────────┘
+```mermaid
+graph TD
+    App[Application Layer<br/>Dual-Write Logic]
+    App --> Source[Source Cluster]
+    App --> HCD[HCD Cluster]
+    
+    style App fill:#e1f5ff
+    style Source fill:#fff4e6
+    style HCD fill:#e8f5e9
 ```
 
 ## Planning Checklist

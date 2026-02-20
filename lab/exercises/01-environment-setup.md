@@ -100,8 +100,9 @@ docker exec hcd-node nodetool status
 docker exec -it dse-node cqlsh
 
 # You should see:
-# Connected to DSE_Cluster at 127.0.0.1:9042.
-# [cqlsh 5.0.1 | DSE 5.1.35 | CQL spec 3.4.4 | DSE protocol v1]
+# Connected to Source_Cluster at 127.0.0.1:9042.
+# [cqlsh 5.0.1 | Cassandra 3.11/4.0/4.1 or DSE 5.1.35+ | CQL spec 3.4.4+ | Protocol v4/v5]
+# Note: Version numbers will vary based on your source (Cassandra 3.11/4.0/4.1 or DSE 5.1/6.8/6.9)
 
 # Test basic query
 cqlsh> SELECT cluster_name, release_version FROM system.local;

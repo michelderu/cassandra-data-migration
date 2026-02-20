@@ -8,8 +8,10 @@ This lab environment is **fully compatible** with Apple Silicon (M1/M2/M3) Macs 
 
 When Colima is started with Rosetta 2 emulation, **ALL** components work perfectly:
 
-- **DSE 5.1 Cluster** (3 nodes) - Native ARM64 support
-- **HCD/Cassandra 4.1 Cluster** (3 nodes) - Native ARM64 support
+- **Source Cluster** - Cassandra (native ARM64) or DSE (x86_64 via Rosetta 2)
+  - Cassandra 3.11/4.0/4.1: Native ARM64 support
+  - DSE 5.1/6.8/6.9: x86_64 via Rosetta 2 emulation
+- **HCD/Cassandra 4.1 Cluster** (Target) - Native ARM64 support
 - **ZDM Proxy** - Works via Rosetta 2 emulation (x86_64)
 - **Data Generator** - Native ARM64 support
 - **Migration Tools** (DSBulk, cqlsh, Python) - Native ARM64 support

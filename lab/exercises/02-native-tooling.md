@@ -202,8 +202,9 @@ cqlsh hcd-node -e "SELECT * from training.user_activity;"
 
 # Use sstableloader to stream data from DSE to HCD
 # Note: sstableloader is in /opt/dse/resources/cassandra/bin/
-# This will likely fail (or crash the DSE node) due to SSTable format incompatibility
-# DSE 5.1 uses 'mc' format, Cassandra 4.1 uses 'na/nb' format
+# This will likely fail due to SSTable format incompatibility between source and target
+# Source formats: Cassandra 3.11 ('mc'), Cassandra 4.0/4.1 ('na/nb'), DSE 5.1/6.8 ('mc'), DSE 6.9 ('me')
+# Target format: HCD/Cassandra 4.1 ('na/nb')
 # The -d flag specifies the initial contact point for the target cluster
 /opt/dse/resources/cassandra/bin/sstableloader \
   -d hcd-node \
@@ -213,7 +214,7 @@ cqlsh hcd-node -e "SELECT * from training.user_activity;"
 exit
 ```
 
-**Note:** SSTableLoader may fail due to SSTable format incompatibility between DSE 5.1 (mc format) and Cassandra 4.1 (na/nb format). This is a real limitation and why other tools like DSBulk are often preferred.
+**Note:** SSTableLoader may fail due to SSTable format incompatibility between source and target clusters. This is a real limitation and why other tools like DSBulk are often preferred.
 
 ### Step 7: Clean Up Snapshots
 
@@ -325,7 +326,7 @@ exit
 
 ### Issue: SSTableLoader format incompatibility
 
-**Solution:** This is expected. DSE 5.1 uses SSTable format 'mc' while Cassandra 4.1 uses 'na/nb'. Use DSBulk instead (covered in Exercise 3).
+**Solution:** This is expected due to SSTable format incompatibility. Use DSBulk instead (covered in Exercise 3), which works across all versions.
 
 ### Issue: Permission denied accessing SSTables
 

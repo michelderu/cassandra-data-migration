@@ -1,14 +1,23 @@
-# Docker Compose for DSE to HCD Migration Lab
+# Docker Compose for Cassandra/DSE to HCD Migration Lab
 # Compatible with both AMD64 and ARM64 (Apple Silicon with Rosetta 2)
 #
 # For Apple Silicon (M1/M2/M3), start Colima with Rosetta 2 emulation:
 # colima start --arch aarch64 --vm-type=vz --vz-rosetta --cpu 6 --memory 12 --disk 60
+#
+# Source Cluster Options:
+# 1. DSE: datastax/dse-server:5.1.35, 6.8.30, 6.9.0
+# 2. Cassandra: cassandra:3.11, cassandra:4.0, cassandra:4.1
+#
+# Simply change the image below to switch between DSE and Cassandra as source
 
 services:
-  # DSE 5.1 Cluster (Source)
+  # Source Cluster - Default: DSE 5.1.35
+  # Alternative options:
+  #   - DSE: datastax/dse-server:6.8.30 or datastax/dse-server:6.9.0
+  #   - Cassandra: cassandra:3.11, cassandra:4.0, cassandra:4.1
   dse-node:
     image: datastax/dse-server:5.1.35
-    platform: linux/amd64  # DSE images are x86_64; on Apple Silicon use Colima with --vz-rosetta
+    platform: linux/amd64  # DSE images are x86_64; Cassandra supports both amd64 and arm64
     container_name: dse-node
     hostname: dse-node
     networks:
@@ -19,8 +28,8 @@ services:
       - "7000:7000"   # Inter-node
       - "7199:7199"   # JMX
     environment:
-      DS_LICENSE: accept
-      CLUSTER_NAME: DSE_Cluster
+      DS_LICENSE: accept  # Only needed for DSE; ignored by Cassandra
+      CLUSTER_NAME: Source_Cluster
       DC: dc1
       RACK: Rack1
       SEEDS: dse-node

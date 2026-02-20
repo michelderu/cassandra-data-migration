@@ -56,7 +56,7 @@ Choosing the right migration tool depends on multiple factors including dataset 
 ## Decision Tree
 
 ```
-Start: Need to migrate DSE 5.1 to HCD
+Start: Need to migrate Cassandra/DSE to HCD
 │
 ├─ Can you tolerate downtime?
 │  │

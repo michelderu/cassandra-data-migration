@@ -1,6 +1,7 @@
 # ZDM Proxy Configuration for Lab Environment
 
-# Origin cluster (DSE 5.1)
+# Origin cluster (Source: Cassandra or DSE)
+# Supports: Cassandra 3.11/4.0/4.1 or DSE 5.1/6.8/6.9
 origin_contact_points: "dse-node"
 origin_port: 9042
 origin_username: "cassandra"
