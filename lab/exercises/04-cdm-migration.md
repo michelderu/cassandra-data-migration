@@ -114,13 +114,12 @@ SELECT COUNT(*) FROM training.user_activity
 ```bash
 # Run CDM migration for users table
 docker exec spark-cdm spark-submit \
-  --class com.datastax.cdm.job.Migrate \
+  --properties-file /app/config/cdm.properties \
+  --conf spark.cdm.schema.origin.keyspaceTable="training.users" \
   --master 'local[*]' \
   --driver-memory 2g \
   --executor-memory 2g \
-  --properties-file /app/config/cdm.properties \
-  --conf spark.cdm.schema.origin.keyspaceTable=training.users \
-  --conf spark.cdm.schema.target.keyspaceTable=training.users \
+  --class com.datastax.cdm.job.Migrate \
   /assets/cassandra-data-migrator-5.6.3.jar \
   2>&1 | tee cdm-logs/migrate-users.log
 
@@ -150,37 +149,34 @@ docker exec hcd-node cqlsh -e "SELECT * FROM training.users LIMIT 5;"
 ```bash
 # Migrate products
 docker exec spark-cdm spark-submit \
-  --class com.datastax.cdm.job.Migrate \
+  --properties-file /app/config/cdm.properties \
+  --conf spark.cdm.schema.origin.keyspaceTable="training.products" \
   --master 'local[*]' \
   --driver-memory 2g \
   --executor-memory 2g \
-  --properties-file /app/config/cdm.properties \
-  --conf spark.cdm.schema.origin.keyspaceTable=training.products \
-  --conf spark.cdm.schema.target.keyspaceTable=training.products \
+  --class com.datastax.cdm.job.Migrate \
   /assets/cassandra-data-migrator-5.6.3.jar \
   2>&1 | tee cdm-logs/migrate-products.log
 
 # Migrate orders
 docker exec spark-cdm spark-submit \
-  --class com.datastax.cdm.job.Migrate \
+  --properties-file /app/config/cdm.properties \
+  --conf spark.cdm.schema.origin.keyspaceTable="training.orders" \
   --master 'local[*]' \
   --driver-memory 2g \
   --executor-memory 2g \
-  --properties-file /app/config/cdm.properties \
-  --conf spark.cdm.schema.origin.keyspaceTable=training.orders \
-  --conf spark.cdm.schema.target.keyspaceTable=training.orders \
+  --class com.datastax.cdm.job.Migrate \
   /assets/cassandra-data-migrator-5.6.3.jar \
   2>&1 | tee cdm-logs/migrate-orders.log
 
 # Migrate user_activity
 docker exec spark-cdm spark-submit \
-  --class com.datastax.cdm.job.Migrate \
+  --properties-file /app/config/cdm.properties \
+  --conf spark.cdm.schema.origin.keyspaceTable="training.user_activity" \
   --master 'local[*]' \
   --driver-memory 2g \
   --executor-memory 2g \
-  --properties-file /app/config/cdm.properties \
-  --conf spark.cdm.schema.origin.keyspaceTable=training.user_activity \
-  --conf spark.cdm.schema.target.keyspaceTable=training.user_activity \
+  --class com.datastax.cdm.job.Migrate \
   /assets/cassandra-data-migrator-5.6.3.jar \
   2>&1 | tee cdm-logs/migrate-user_activity.log
 ```
@@ -245,13 +241,12 @@ For more detailed validation, use CDM's built-in DiffData:
 ```bash
 # Validate users table with DiffData
 docker exec spark-cdm spark-submit \
-  --class com.datastax.cdm.job.DiffData \
+  --properties-file /app/config/cdm.properties \
+  --conf spark.cdm.schema.origin.keyspaceTable="training.users" \
   --master 'local[*]' \
   --driver-memory 2g \
   --executor-memory 2g \
-  --properties-file /app/config/cdm.properties \
-  --conf spark.cdm.schema.origin.keyspaceTable=training.users \
-  --conf spark.cdm.schema.target.keyspaceTable=training.users \
+  --class com.datastax.cdm.job.DiffData \
   /assets/cassandra-data-migrator-5.6.3.jar \
   2>&1 | tee cdm-logs/diffdata-users.log
 
@@ -266,13 +261,12 @@ cat cdm-logs/diffdata-users.log | grep "Valid Record"
 for table in products orders user_activity; do
   echo "Validating $table..."
   docker exec spark-cdm spark-submit \
-    --class com.datastax.cdm.job.DiffData \
+    --properties-file /app/config/cdm.properties \
+    --conf spark.cdm.schema.origin.keyspaceTable="training.$table" \
     --master 'local[*]' \
     --driver-memory 2g \
     --executor-memory 2g \
-    --properties-file /app/config/cdm.properties \
-    --conf spark.cdm.schema.origin.keyspaceTable=training.$table \
-    --conf spark.cdm.schema.target.keyspaceTable=training.$table \
+    --class com.datastax.cdm.job.DiffData \
     /assets/cassandra-data-migrator-5.6.3.jar \
     2>&1 | tee cdm-logs/diffdata-$table.log
 done
@@ -348,13 +342,12 @@ VALUES (uuid(), 'test_cdm_user', 'test@cdm.com', toTimestamp(now()));
 # Note: This would require adding autocorrect configuration
 # For now, just re-run the migration which is idempotent
 docker exec spark-cdm spark-submit \
-  --class com.datastax.cdm.job.Migrate \
+  --properties-file /app/config/cdm.properties \
+  --conf spark.cdm.schema.origin.keyspaceTable="training.users" \
   --master 'local[*]' \
   --driver-memory 2g \
   --executor-memory 2g \
-  --properties-file /app/config/cdm.properties \
-  --conf spark.cdm.schema.origin.keyspaceTable=training.users \
-  --conf spark.cdm.schema.target.keyspaceTable=training.users \
+  --class com.datastax.cdm.job.Migrate \
   /assets/cassandra-data-migrator-5.6.3.jar
 
 echo "✓ Auto-correction test completed"

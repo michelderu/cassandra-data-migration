@@ -14,7 +14,9 @@
 
 ## Overview
 
-Cassandra Data Migrator (CDM) is an Apache Spark-based tool designed for large-scale data migration between Cassandra clusters. It's particularly effective for bulk data migration and can be combined with other tools for zero-downtime scenarios.
+Cassandra Data Migrator (CDM) is an Apache Spark-based tool designed for large-scale data migration and validation between Apache Cassandra®-based databases. It's particularly effective for bulk data migration and can be combined with other tools for zero-downtime scenarios.
+
+> **Important:** To use CDM successfully, your origin and target clusters must be Cassandra-based databases with matching schemas.
 
 ### Key Features
 
@@ -25,6 +27,10 @@ Cassandra Data Migrator (CDM) is an Apache Spark-based tool designed for large-s
 ✅ **Transformation**: Can transform data during migration  
 ✅ **Resumable**: Can resume interrupted migrations  
 ✅ **Open Source**: Community-driven development
+✅ **Track Runs**: Monitor migration progress in target keyspace tables
+✅ **Resumable Jobs**: Auto-rerun incomplete migrations
+✅ **SSL Support**: Including custom cipher algorithms
+✅ **Astra DB Support**: Automatic SCB download via DevOps API
 
 ### When to Use CDM
 
@@ -92,14 +98,15 @@ graph TD
 
 #### 3. Source Cluster
 - Provides data to migrate
-- Supports: Apache Cassandra 3.11/4.0/4.1 or DSE 5.1/6.8/6.9
+- Supports: Apache Cassandra®, DataStax Enterprise™, DataStax Astra DB™, Azure Cosmos Cassandra
 - Remains operational during migration
 - No modifications required
 
-#### 4. Target Cluster (HCD)
+#### 4. Target Cluster
 - Receives migrated data
 - Schema must exist before migration
 - Can be operational during migration
+- Supports: Apache Cassandra®, DataStax Enterprise™, DataStax Astra DB™, Azure Cosmos Cassandra
 
 ## Installation
 
@@ -107,9 +114,10 @@ graph TD
 
 ```bash
 # Required software
-- Apache Spark 3.x
+- Apache Spark 3.5.x (tested with 3.5.7)
 - Java 11 or higher
-- Scala 2.12
+- Scala 2.13
+- Hadoop 3.3
 - Network connectivity to both clusters
 
 # Recommended resources
@@ -121,10 +129,14 @@ graph TD
 ### Method 1: Pre-built JAR
 
 ```bash
-# Download CDM JAR
-wget https://github-registry-files.githubusercontent.com/538937619/ffa9af80-ea71-11f0-87fb-f5d6da70f424?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAVCODYLSA53PQK4ZA%2F20260219%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260219T143142Z&X-Amz-Expires=300&X-Amz-Signature=829b98c4fa80e124ecbf1c973186ed920db83e6050e9747c334f22c45833d124&X-Amz-SignedHeaders=host&response-content-disposition=filename%3Dcassandra-data-migrator-5.7.2.jar&response-content-type=application%2Foctet-stream
+# Download latest CDM JAR (replace x.y.z with actual version)
+curl -L0 https://github.com/datastax/cassandra-data-migrator/releases/download/x.y.z/cassandra-data-migrator-x.y.z.jar --output cassandra-data-migrator-x.y.z.jar
+
+# Or download from packages area
+# https://github.com/datastax/cassandra-data-migrator/packages/1832128
+
 # Verify download
-ls -lh cassandra-data-migrator-4.0.0.jar
+ls -lh cassandra-data-migrator-x.y.z.jar
 ```
 
 ### Method 2: Build from Source
@@ -134,8 +146,8 @@ ls -lh cassandra-data-migrator-4.0.0.jar
 git clone https://github.com/datastax/cassandra-data-migrator.git
 cd cassandra-data-migrator
 
-# Build with Maven
-mvn clean package -DskipTests
+# Build with Maven (requires Maven 3.9.x)
+mvn clean package
 
 # JAR location
 ls -lh target/cassandra-data-migrator-*.jar
@@ -144,14 +156,16 @@ ls -lh target/cassandra-data-migrator-*.jar
 ### Method 3: Docker
 
 ```bash
-# Pull Docker image
-docker pull datastax/cassandra-data-migrator:4.0.0
+# Pull latest Docker image
+docker pull datastax/cassandra-data-migrator:latest
 
 # Run migration
 docker run -v $(pwd)/config:/config \
-  datastax/cassandra-data-migrator:4.0.0 \
+  datastax/cassandra-data-migrator:latest \
   --conf /config/cdm.properties
 ```
+
+> **Note:** For Spark Cluster deployments, replace `--master "local[*]"` with `--master "spark://master-host:port"` and remove single-VM parameters like `--driver-memory` and `--executor-memory`.
 
 ## Configuration
 
@@ -159,6 +173,7 @@ docker run -v $(pwd)/config:/config \
 
 ```properties
 # cdm.properties
+# Note: This file can have any name, not necessarily "cdm.properties"
 
 # Spark configuration
 spark.master=local[*]
@@ -182,7 +197,7 @@ spark.target.table=users
 
 # Migration settings
 spark.cdm.schema.origin.column.names.to.target=*
-spark.cdm.perfops.numParts=100
+spark.cdm.perfops.numParts=5000
 spark.cdm.perfops.batchSize=5
 ```
 
@@ -220,11 +235,11 @@ spark.target.connection.localDC=datacenter1
 spark.target.connection.consistency=LOCAL_QUORUM
 
 # Performance tuning
-spark.cdm.perfops.numParts=200
-spark.cdm.perfops.batchSize=10
+spark.cdm.perfops.numParts=5000
+spark.cdm.perfops.batchSize=5
 spark.cdm.perfops.fetchSizeInRows=1000
-spark.cdm.perfops.ratelimit.origin=10000
-spark.cdm.perfops.ratelimit.target=10000
+spark.cdm.perfops.ratelimit.origin=20000
+spark.cdm.perfops.ratelimit.target=20000
 
 # Data validation
 spark.cdm.autocorrect.missing=true
@@ -264,12 +279,10 @@ spark.target.connection.ssl.keystore.password=keystore_password
 
 ```bash
 # Basic full table migration
-spark-submit \
-  --class com.datastax.cdm.job.Migrate \
-  --master spark://spark-master:7077 \
-  --conf spark.executor.instances=10 \
-  cassandra-data-migrator-4.0.0.jar \
-  --properties-file cdm.properties
+spark-submit --properties-file cdm.properties \
+  --conf spark.cdm.schema.origin.keyspaceTable="myapp.users" \
+  --master "local[*]" --driver-memory 25G --executor-memory 25G \
+  --class com.datastax.cdm.job.Migrate cassandra-data-migrator-x.y.z.jar &> logfile_name_$(date +%Y%m%d_%H_%M).txt
 ```
 
 ### Strategy 2: Partition Range Migration
@@ -292,13 +305,12 @@ for range in "0-25" "26-50" "51-75" "76-100"; do
   MIN=$(echo $range | cut -d'-' -f1)
   MAX=$(echo $range | cut -d'-' -f2)
   
-  spark-submit \
-    --class com.datastax.cdm.job.Migrate \
-    --master spark://spark-master:7077 \
+  spark-submit --properties-file cdm.properties \
+    --conf spark.cdm.schema.origin.keyspaceTable="myapp.users" \
     --conf spark.cdm.filter.cassandra.partition.min=$MIN \
     --conf spark.cdm.filter.cassandra.partition.max=$MAX \
-    cassandra-data-migrator-4.0.0.jar \
-    --properties-file cdm.properties &
+    --master "local[*]" --driver-memory 25G --executor-memory 25G \
+    --class com.datastax.cdm.job.Migrate cassandra-data-migrator-x.y.z.jar &
 done
 wait
 ```
@@ -307,12 +319,14 @@ wait
 
 ```properties
 # First run: Full migration
-spark.cdm.feature.writetime.enabled=false
+spark.cdm.feature.writetime.enabled=true
 
 # Subsequent runs: Only new/updated data
 spark.cdm.feature.writetime.enabled=true
 spark.cdm.feature.writetime.filter.min=1708099200000000  # Timestamp in microseconds
 ```
+
+> **Note:** Always enable writetime preservation to maintain chronological write history.
 
 ### Strategy 4: Column Subset Migration
 
@@ -339,22 +353,27 @@ spark.cdm.transform.custom.class=com.example.MyTransformer
 ### 1. Data Validation
 
 ```properties
-# Enable validation
+# Enable AutoCorrect validation
 spark.cdm.autocorrect.missing=true
 spark.cdm.autocorrect.mismatch=true
+spark.cdm.autocorrect.missing.counter=false  # Set to true for counter tables
 
 # Validation modes:
-# - missing: Detect and copy missing rows
-# - mismatch: Detect and fix data mismatches
+# - autocorrect.missing: Add missing records from origin to target
+# - autocorrect.mismatch: Reconcile mismatched records (origin overwrites target)
+# - autocorrect.missing.counter: Enable for counter tables (default: false)
 ```
+
+> **Important:** The validation job will never delete records from target - it only adds or updates data.
+
+> **Important:** For `autocorrect.mismatch`, if the writetime of the origin record is before the target record's writetime, the original write won't appear in the target cluster due to last-write-wins semantics.
 
 ```bash
 # Run validation-only job
-spark-submit \
-  --class com.datastax.cdm.job.DiffData \
-  --master spark://spark-master:7077 \
-  cassandra-data-migrator-4.0.0.jar \
-  --properties-file cdm.properties
+spark-submit --properties-file cdm.properties \
+  --conf spark.cdm.schema.origin.keyspaceTable="myapp.users" \
+  --master "local[*]" --driver-memory 25G --executor-memory 25G \
+  --class com.datastax.cdm.job.DiffData cassandra-data-migrator-x.y.z.jar &> logfile_name_$(date +%Y%m%d_%H_%M).txt
 ```
 
 ### 2. Guardrails
@@ -385,6 +404,9 @@ spark.cdm.feature.writetime.enabled=true
 # Enable counter table migration
 spark.cdm.feature.counter.enabled=true
 
+# For validation with AutoCorrect on counter tables
+spark.cdm.autocorrect.missing.counter=true
+
 # Counter tables require special handling
 ```
 
@@ -396,13 +418,58 @@ spark.cdm.feature.largefield.enabled=true
 spark.cdm.feature.largefield.sizeInKB=1024
 ```
 
+### 6. Run Tracking
+
+```properties
+# Enable run tracking (stores metrics in target keyspace)
+spark.cdm.trackRun=true
+
+# Auto-rerun previous incomplete job
+spark.cdm.trackRun.autoRerun=true
+
+# Or rerun a specific previous job
+spark.cdm.trackRun.previousRunId=<prev_run_id>
+```
+
+> **Note:** Run information is stored in tables `cdm_run_info` and `cdm_run_details` in the target keyspace.
+
+### 7. Guardrail Checks
+
+```bash
+# Check for large fields that may violate cluster guardrails
+spark-submit --properties-file cdm.properties \
+  --conf spark.cdm.schema.origin.keyspaceTable="myapp.users" \
+  --conf spark.cdm.feature.guardrail.colSizeInKB=10000 \
+  --master "local[*]" --driver-memory 25G --executor-memory 25G \
+  --class com.datastax.cdm.job.GuardrailCheck cassandra-data-migrator-x.y.z.jar &> logfile_name_$(date +%Y%m%d_%H_%M).txt
+```
+
+> **Note:** Guardrail check mode only operates on origin cluster, there is no target in this mode.
+
 ## Performance Tuning
+
+### Important Performance Notes
+
+> **Performance Bottlenecks:**
+> - Low resource availability on Origin or Target cluster
+> - Low resource availability on CDM VMs
+> - Bad schema design (unbalanced cluster, large partitions >100MB, large rows >10MB, high column count)
+
+> **Key Configuration Impact:**
+> - `numParts`: Default 5K, ideal is usually table-size/10MB
+> - `batchSize`: Default 5, use 1 for large rows (>20KB) or when PK=partition key
+> - `fetchSizeInRows`: Default 1K, reduce for tables with large rows (>100KB)
+> - `ratelimit`: Default 20000, adjust to highest value clusters can handle
+
+> **Performance Impact:**
+> - Schema manipulation features (constantColumns, explodeMap, extractJson) may reduce performance
+> - Transformation functions and where-filter conditions (except partition min/max) may reduce performance
 
 ### 1. Parallelism
 
 ```properties
 # Increase parallelism
-spark.cdm.perfops.numParts=500  # More partitions = more parallelism
+spark.cdm.perfops.numParts=5000  # Default is 5000, ideal is usually table-size/10MB
 
 # Spark executor configuration
 spark.executor.instances=20
@@ -438,13 +505,14 @@ spark.target.connection.connections_per_executor_max=8
 
 ```bash
 # Increase driver and executor memory
-spark-submit \
+spark-submit --properties-file cdm.properties \
+  --conf spark.cdm.schema.origin.keyspaceTable="myapp.users" \
+  --master "local[*]" \
   --driver-memory 16g \
   --executor-memory 32g \
   --conf spark.memory.fraction=0.8 \
   --conf spark.memory.storageFraction=0.3 \
-  cassandra-data-migrator-4.0.0.jar \
-  --properties-file cdm.properties
+  --class com.datastax.cdm.job.Migrate cassandra-data-migrator-x.y.z.jar &> logfile_name_$(date +%Y%m%d_%H_%M).txt
 ```
 
 ## Monitoring
@@ -557,7 +625,7 @@ spark.cdm.filter.cassandra.partition.max=100
 spark.executor.instances=20
 spark.executor.cores=4
 spark.executor.memory=16g
-spark.cdm.perfops.numParts=500
+spark.cdm.perfops.numParts=5000  # Ideal: table-size/10MB
 
 # Adjust based on:
 # - Dataset size
@@ -565,6 +633,8 @@ spark.cdm.perfops.numParts=500
 # - Network bandwidth
 # - Cluster capacity
 ```
+
+> **Note:** When running on a Spark Cluster, rate-limit values apply per worker node. Set to: effective-rate-limit/number-of-worker-nodes.
 
 ### 4. Error Handling
 
@@ -607,10 +677,10 @@ spark-submit ... DiffData ...
 spark.executor.memory=32g
 
 # 2. Reduce batch size
-spark.cdm.perfops.batchSize=5
+spark.cdm.perfops.batchSize=1  # Use 1 for large rows (>20KB) or when PK=partition key
 
 # 3. Increase number of partitions
-spark.cdm.perfops.numParts=1000
+spark.cdm.perfops.numParts=10000
 ```
 
 ### Issue 2: Slow Migration
@@ -622,7 +692,7 @@ spark.cdm.perfops.numParts=1000
 # Solutions
 # 1. Increase parallelism
 spark.executor.instances=30
-spark.cdm.perfops.numParts=500
+spark.cdm.perfops.numParts=10000
 
 # 2. Optimize batch size
 spark.cdm.perfops.batchSize=10
@@ -694,7 +764,7 @@ set -e
 
 KEYSPACE="myapp"
 TABLES=("users" "orders" "products")
-CDM_JAR="cassandra-data-migrator-4.0.0.jar"
+CDM_JAR="cassandra-data-migrator-x.y.z.jar"
 SPARK_MASTER="spark://spark-master:7077"
 
 echo "Starting CDM migration"
@@ -724,7 +794,7 @@ spark.target.password=cassandra
 spark.target.keyspace=$KEYSPACE
 spark.target.table=$TABLE
 
-spark.cdm.perfops.numParts=200
+spark.cdm.perfops.numParts=5000
 spark.cdm.perfops.batchSize=10
 spark.cdm.feature.ttl.enabled=true
 spark.cdm.feature.writetime.enabled=true
@@ -750,6 +820,29 @@ done
 
 echo "All tables migrated successfully"
 ```
+
+## Important Limitations and Behaviors
+
+### TTL and Writetime Handling
+- CDM does not migrate TTL & writetime at field-level (for optimization)
+- It finds the field with highest TTL & highest writetime within an origin row and uses those for the entire target row
+- CDM ignores collection and UDT fields for TTL & writetime calculations by default
+- Set `spark.cdm.schema.ttlwritetime.calc.useCollections=true` to include collections/UDTs (may impact performance)
+
+### Data Handling
+- CDM uses `UNSET` value for null fields (including empty texts) to avoid creating tombstones
+- When running multiple times on same table, may create duplicate entries in `list` columns due to [Cassandra bug CASSANDRA-11368](https://issues.apache.org/jira/browse/CASSANDRA-11368)
+- Use `spark.cdm.transform.custom.writetime.incrementBy` with positive value to address list duplication
+
+### Last-Write-Wins with ZDM Proxy
+When using CDM with ZDM Proxy, Cassandra's last-write-wins semantics ensure new, real-time writes take precedence over historical writes. The system compares `writetime` of conflicting records and retains the most recent write.
+
+**Example:** If a new write occurs in target with writetime `2023-10-01T12:05:00Z`, and CDM migrates a record with writetime `2023-10-01T12:00:00Z`, the target retains the newer write.
+
+### Run Metrics
+- When rerunning to resume from previous run, metrics in `cdm_run_info` are only for current run
+- If previous run was killed, its metrics may not be saved
+- If previous run completed with errors, all run metrics from previous run are available
 
 ## Summary
 
@@ -782,4 +875,4 @@ CDM provides powerful capabilities for large-scale data migration:
 
 ---
 
-**Next:** [Tool Comparison and Decision Matrix](06-comparison-matrix.md)
+**Next:** [Zero Downtime Migration (ZDM) Proxy Approach](05-zdm-approach.md)

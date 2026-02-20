@@ -9,7 +9,7 @@
 
 ## Introduction
 
-Migrating from DataStax Enterprise (DSE) 5.1 to Hyper-Converged Database (HCD) represents a significant infrastructure change that requires careful planning and execution. This guide provides a comprehensive overview of migration strategies with a focus on achieving zero downtime.
+Migrating from Cassandra or DataStax Enterprise to Hyper-Converged Database (HCD) represents a significant infrastructure change that requires careful planning and execution. This guide provides a comprehensive overview of migration strategies with a focus on achieving zero downtime.
 
 ### Why Migrate?
 
@@ -20,6 +20,7 @@ Migrating from DataStax Enterprise (DSE) 5.1 to Hyper-Converged Database (HCD) r
 - **Cloud-Native**: Better integration with cloud platforms
 
 ## Understanding the Source and Target
+In this lab we'll use DataStax Enterprise 5.1 as a source. However, any version of Cassandra can be used.
 
 ### DataStax Enterprise 5.1
 
@@ -165,15 +166,20 @@ Protocol Version: V5
 ```mermaid
 graph TD
     App[Application] --> Proxy[ZDM Proxy]
-    Proxy --> SN1[Source Node 1]
-    Proxy --> SN2[Source Node 2]
-    Proxy --> SN3[Source Node 3]
+    Proxy --> Source[Source Cluster<br/>DSE/Cassandra]
+    Proxy --> Target[Target Cluster<br/>HCD]
     
-    SN1 -.Data Validation.-> HN1[HCD Node 1]
-    SN2 -.Data Validation.-> HN2[HCD Node 2]
-    SN3 -.Data Validation.-> HN3[HCD Node 3]
+    Source -.Reads/Writes.-> SN1[Source Node 1]
+    Source -.Reads/Writes.-> SN2[Source Node 2]
+    Source -.Reads/Writes.-> SN3[Source Node 3]
+    
+    Target -.Async Writes.-> HN1[HCD Node 1]
+    Target -.Async Writes.-> HN2[HCD Node 2]
+    Target -.Async Writes.-> HN3[HCD Node 3]
     
     style Proxy fill:#e1f5ff
+    style Source fill:#fff4e6
+    style Target fill:#e8f5e9
     style SN1 fill:#fff4e6
     style SN2 fill:#fff4e6
     style SN3 fill:#fff4e6
@@ -343,5 +349,5 @@ graph TD
 **Related Documents:**
 - [Native Tooling Options](02-native-tooling.md)
 - [DSE-Specific Tooling](03-dse-tooling.md)
-- [ZDM Approach](04-zdm-approach.md)
-- [CDM Approach](05-cdm-approach.md)
+- [CDM Approach](04-cdm-approach.md)
+- [ZDM Approach](05-zdm-approach.md)

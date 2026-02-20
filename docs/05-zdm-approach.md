@@ -13,7 +13,9 @@
 
 ## Overview
 
-The Zero Downtime Migration (ZDM) proxy is a purpose-built solution for migrating from DSE/Cassandra to HCD with zero downtime. It acts as a transparent proxy between applications and database clusters, enabling gradual migration without application changes.
+The Zero Downtime Migration (ZDM) process enables your applications to continue running while you migrate data from one Cassandra-based database to another, resulting in little or no downtime and minimal service interruptions. The ZDM process uses ZDM Proxy, ZDM Utility, and ZDM Proxy Automation to orchestrate live reads and writes on your databases while you move and validate data with a data migration tool, such as Cassandra Data Migrator (CDM), DSBulk Loader, or Astra DB Sideloader.
+
+> **Important:** To successfully migrate with ZDM Proxy, a read or write request produced by your client application must be able to succeed *without modification* on both your origin (existing) and target (new) clusters. This means that the origin and target clusters must have matching schemas, including keyspace names, table names, column names, and data types.
 
 ### Key Features
 
@@ -99,81 +101,24 @@ graph TD
 - Receives dual-writes during migration
 - Eventually becomes primary cluster
 
-## How ZDM Works
+## How ZDM Proxy Works
 
-### Phase 1: Dual-Write Mode
+ZDM Proxy keeps your databases in sync at all times through its dual-writes feature, which means you can seamlessly stop or abandon the migration at any point before the last phase (the final cutover to the new database).
 
-```
-Application Write Request
-         │
-         ▼
-    ZDM Proxy
-         │
-    ┌────┴────┐
-    ▼         ▼
-  Origin    Target
-   (DSE)    (HCD)
-    │         │
-    └────┬────┘
-         │
-    Response to
-    Application
-```
+### Dual-Write Mechanism
 
-**Behavior:**
-- All writes go to both clusters
-- Reads come from Origin (DSE)
-- Asynchronous writes to Target
-- Origin response returned to application
+When ZDM Proxy is deployed and connected:
+- **Writes**: Sent to both origin and target clusters simultaneously
+- **Reads**: Initially from origin only, gradually shifted to target
+- **Consistency**: Last-write-wins semantics ensure data consistency
+- **Rollback**: Can rollback at any point before final cutover
 
-### Phase 2: Read Routing
+### Read Routing Modes
 
-```
-Application Read Request
-         │
-         ▼
-    ZDM Proxy
-    (Decision)
-         │
-    ┌────┴────┐
-    ▼         ▼
-  Origin    Target
-  (Primary) (Secondary)
-    │         │
-    └────┬────┘
-         │
-    Response to
-    Application
-```
-
-**Behavior:**
-- Configurable read routing percentage
-- Gradual shift from Origin to Target
-- Fallback to Origin on Target errors
-- Performance comparison
-
-### Phase 3: Target Primary
-
-```
-Application Request
-         │
-         ▼
-    ZDM Proxy
-         │
-         ▼
-      Target
-      (HCD)
-    (Primary)
-         │
-         ▼
-    Response to
-    Application
-```
-
-**Behavior:**
-- All traffic to Target (HCD)
-- Origin cluster can be decommissioned
-- Migration complete
+ZDM Proxy supports three read routing modes:
+- `PRIMARY_ONLY`: Reads from primary cluster only (origin or target)
+- `DUAL`: Asynchronous dual reads for testing target performance
+- `TARGET_ONLY`: All reads from target cluster
 
 ## Installation and Setup
 
@@ -377,28 +322,48 @@ proxy_ssl_keystore_password: "keystore_password"
 
 ## Migration Phases
 
-### Phase 0: Preparation
+A migration project includes preparation and five migration phases. The following sections describe the major events in each phase.
 
-```bash
-# 1. Set up HCD cluster
-# 2. Create schema on HCD
-cqlsh hcd-node1 < schema.cql
+### Preparation: Plan and Prepare
 
-# 3. Initial data load (optional)
-# Use sstableloader or dsbulk for bulk data
-dsbulk load -h hcd-node1 -k myapp -t users -url /export/users
+Before beginning the migration, your client applications perform read/write operations directly with your existing CQL-compatible database (origin cluster).
 
-# 4. Deploy ZDM proxy
-docker run -d --name zdm-proxy \
-  -p 9042:9042 \
-  -v $(pwd)/config.yml:/config.yml \
-  datastax/zdm-proxy:2.1.0 --config /config.yml
+**Key Activities:**
 
-# 5. Verify proxy connectivity
-cqlsh zdm-proxy-host 9042 -u cassandra -p cassandra
-```
+1. **Review Compatibility Requirements**
+   - Ensure clusters, data model, and application logic are compatible with ZDM Proxy
+   - Verify matching schemas between origin and target (keyspace names, table names, column names, data types)
+   - Adjust data model or application logic as needed
 
-### Phase 1: Enable Dual-Write
+2. **Prepare Infrastructure**
+   ```bash
+   # Set up target cluster
+   # Create matching schemas on target
+   cqlsh target-node1 < schema.cql
+   
+   # Verify schema compatibility
+   cqlsh origin-node1 -e "DESCRIBE KEYSPACE myapp;"
+   cqlsh target-node1 -e "DESCRIBE KEYSPACE myapp;"
+   ```
+
+3. **Deploy ZDM Proxy Infrastructure**
+   ```bash
+   # Deploy ZDM proxy instances
+   docker run -d --name zdm-proxy \
+     -p 9042:9042 \
+     -p 14001:14001 \
+     -v $(pwd)/config.yml:/config.yml \
+     datastax/zdm-proxy:2.1.0 --config /config.yml
+   ```
+
+4. **Understand Rollback Options**
+   - ZDM Proxy allows rollback at any point before Phase 5
+   - Dual-write feature keeps clusters in sync
+   - Plan rollback procedures
+
+### Phase 1: Deploy ZDM Proxy and Connect Client Applications
+
+In this phase, deploy ZDM Proxy instances and connect client applications to the proxies. This activates the dual-write logic: writes are sent to both origin and target databases, while reads are executed on the origin only.
 
 ```yaml
 # config.yml - Phase 1
@@ -406,88 +371,171 @@ read_mode: "PRIMARY_ONLY"
 primary_cluster: "ORIGIN"
 ```
 
+**Key Activities:**
+
 ```bash
-# Update application connection strings
-# FROM: dse-node1,dse-node2,dse-node3
+# 1. Update application connection strings
+# FROM: origin-node1,origin-node2,origin-node3
 # TO:   zdm-proxy-host
 
-# Restart applications gradually
-# Monitor for errors
-```
+# 2. Restart applications gradually
+# Monitor for errors and performance
 
-**Validation:**
-```bash
-# Check write counts on both clusters
-cqlsh dse-node1 -e "SELECT COUNT(*) FROM myapp.users;"
-cqlsh hcd-node1 -e "SELECT COUNT(*) FROM myapp.users;"
+# 3. Verify dual-write is working
+cqlsh origin-node1 -e "SELECT COUNT(*) FROM myapp.users;"
+cqlsh target-node1 -e "SELECT COUNT(*) FROM myapp.users;"
 
-# Monitor ZDM metrics
+# 4. Monitor ZDM metrics
 curl http://zdm-proxy-host:14001/metrics | grep write
 ```
 
-### Phase 2: Gradual Read Migration
+**Expected Behavior:**
+- All writes go to both clusters
+- All reads come from origin cluster
+- Asynchronous writes to target
+- Origin response returned to application
 
-```yaml
-# config.yml - Phase 2a (10% reads to target)
-read_mode: "DUAL"
-primary_cluster: "ORIGIN"
-read_routing_percentage: 10  # 10% to target, 90% to origin
-```
+### Phase 2: Migrate and Validate Data
+
+In this phase, use a data migration tool to copy existing data to the target database. ZDM Proxy continues dual writes, so you can focus on migrating data that existed before ZDM Proxy was connected.
+
+> **Production Recommendation:** Use **Cassandra Data Migrator (CDM)** for production backfill operations. CDM provides superior performance, built-in validation, resumability, and is specifically designed for large-scale migrations. DSBulk and Astra DB Sideloader are alternatives for smaller datasets or specific use cases.
+
+**Key Activities:**
 
 ```bash
-# Restart proxy with new config
-docker restart zdm-proxy
+# 1. Use CDM for bulk data migration (RECOMMENDED FOR PRODUCTION)
+spark-submit --properties-file cdm.properties \
+  --conf spark.cdm.schema.origin.keyspaceTable="myapp.users" \
+  --master "local[*]" --driver-memory 25G --executor-memory 25G \
+  --class com.datastax.cdm.job.Migrate cassandra-data-migrator-x.y.z.jar
 
-# Monitor performance
-# Compare latency between clusters
-# Check error rates
+# 2. Validate migrated data with CDM
+spark-submit --properties-file cdm.properties \
+  --conf spark.cdm.schema.origin.keyspaceTable="myapp.users" \
+  --master "local[*]" --driver-memory 25G --executor-memory 25G \
+  --class com.datastax.cdm.job.DiffData cassandra-data-migrator-x.y.z.jar
+
+# 3. Resolve missing and mismatched records
+# Use CDM autocorrect features or manual reconciliation
 ```
 
-```yaml
-# config.yml - Phase 2b (50% reads to target)
-read_mode: "DUAL"
-primary_cluster: "ORIGIN"
-read_routing_percentage: 50
-```
+**Why CDM for Production:**
+- **Performance**: Spark-based parallel processing for multi-TB datasets
+- **Validation**: Built-in DiffData job for consistency checking
+- **Resumability**: Can resume interrupted migrations
+- **TTL/Writetime Preservation**: Maintains data fidelity
+- **Guardrails**: Prevents migration of oversized rows
+- **AutoCorrect**: Automatically fixes missing/mismatched data
 
-```yaml
-# config.yml - Phase 2c (100% reads to target)
-read_mode: "PRIMARY_ONLY"
-primary_cluster: "TARGET"
-```
+**Expected Behavior:**
+- Historical data copied from origin to target
+- ZDM Proxy continues dual-write for new data
+- Thorough validation before proceeding
 
-### Phase 3: Target as Primary
+> **Important:** Do not proceed to Phase 3 until all data is validated and consistent between clusters.
+
+### Phase 3: Enable Asynchronous Dual Reads (Optional but Recommended)
+
+This phase is optional but recommended. Enable asynchronous dual reads to test the target database's ability to handle production workload before permanently switching applications.
 
 ```yaml
 # config.yml - Phase 3
+read_mode: "DUAL"
+primary_cluster: "ORIGIN"
+# Asynchronous reads sent to target for testing
+```
+
+**Key Activities:**
+
+```bash
+# 1. Enable async dual reads
+# Update config and restart proxy
+
+# 2. Monitor target performance
+curl http://zdm-proxy-host:14001/metrics | grep read
+
+# 3. Compare latency between clusters
+# Check error rates on target
+# Verify target can handle production load
+
+# 4. Tune target cluster if needed
+# Adjust resources, compaction, etc.
+```
+
+**Expected Behavior:**
+- Synchronous reads from origin (primary)
+- Asynchronous reads sent to target (secondary)
+- Target performance tested without impacting applications
+- Fallback to origin on target errors
+
+### Phase 4: Route Reads to the Target Database
+
+In this phase, switch read routing to the target database so all reads are executed on target. Writes are still sent to both databases in case rollback is needed.
+
+```yaml
+# config.yml - Phase 4
 read_mode: "PRIMARY_ONLY"
 primary_cluster: "TARGET"
 ```
 
+**Key Activities:**
+
 ```bash
-# All traffic now goes to HCD
-# Monitor for 24-48 hours
-# Verify stability and performance
+# 1. Switch primary cluster to target
+# Update config and restart proxy
+
+# 2. Monitor target cluster closely
+curl http://zdm-proxy-host:14001/metrics
+
+# 3. Verify application performance
+# Check latency, error rates, throughput
+
+# 4. Monitor for 24-48 hours
+# Ensure stability before final cutover
 ```
 
-### Phase 4: Decommission Origin
+**Expected Behavior:**
+- All reads from target cluster
+- All writes still go to both clusters
+- Target is now the primary database
+- Can still rollback if issues occur
+
+> **Note:** At this point, the target database becomes the primary database, but rollback is still possible because dual-writes continue.
+
+### Phase 5: Connect Directly to the Target Database (Final Cutover)
+
+In the final phase, move client applications off ZDM Proxy and connect them directly to the target database. Once this happens, the migration is complete.
+
+**Key Activities:**
 
 ```bash
-# 1. Stop dual-writes (optional)
-# Update config to only write to target
+# 1. Update application connection strings
+# FROM: zdm-proxy-host
+# TO:   target-node1,target-node2,target-node3
 
-# 2. Remove ZDM proxy (optional)
-# Update applications to connect directly to HCD
+# 2. Restart applications gradually
+# Monitor for issues
 
-# 3. Backup origin cluster
+# 3. Verify all applications connected to target
+# Check connection counts
+
+# 4. Decommission ZDM Proxy (optional)
+docker stop zdm-proxy
+docker rm zdm-proxy
+
+# 5. Backup and decommission origin cluster
 nodetool snapshot -t final_backup
-
-# 4. Decommission origin nodes
-nodetool decommission
-
-# 5. Archive data
-# Keep backups for rollback period
+# Archive data per organizational policies
 ```
+
+**Expected Behavior:**
+- Applications connect directly to target
+- No more dual-writes
+- Origin cluster no longer synchronized
+- Migration complete
+
+> **Important:** After Phase 5, the origin database is no longer synchronized with the target database. The origin won't contain writes that happen after you disconnect ZDM Proxy. Whether you destroy or retain the origin database depends on your organization's policies.
 
 ## Monitoring and Validation
 
@@ -787,4 +835,4 @@ ZDM Proxy provides a robust solution for zero-downtime migration:
 
 ---
 
-**Next:** [Cassandra Data Migrator (CDM) Approach](05-cdm-approach.md)
+**Next:** [Tool Comparison and Decision Matrix](06-comparison-matrix.md)

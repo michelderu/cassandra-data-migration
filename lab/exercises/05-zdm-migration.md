@@ -23,15 +23,18 @@
 
 ## Overview
 
-This exercise demonstrates using ZDM (Zero Downtime Migration) Proxy to migrate from DSE to HCD without any downtime. The ZDM methodology follows a 5-phase approach:
+This exercise demonstrates using ZDM (Zero Downtime Migration) Proxy to migrate from DSE to HCD without any downtime. The ZDM methodology follows the official DataStax 5-phase approach:
 
-1. **Phase 1: Proxy Deployment (Origin Only)** - Deploy proxy, route all traffic through Origin
-2. **Phase 2: Enable Dual Writes** - Write to both clusters, read from Origin only
-3. **Phase 3: Backfill Historical Data** - Migrate pre-existing data while dual-writes continue
-4. **Phase 4: Enable Dual Reads** - Read from both clusters, Origin is primary
-5. **Phase 5: Cutover** - Switch to Target as primary, eventually remove proxy
+**Preparation**: Plan and prepare infrastructure
+1. **Phase 1: Deploy ZDM Proxy and Connect Applications** - Deploy proxy, connect apps, enable dual-writes
+2. **Phase 2: Migrate and Validate Data** - Backfill historical data using CDM/DSBulk
+3. **Phase 3: Enable Asynchronous Dual Reads** (Optional) - Test target performance
+4. **Phase 4: Route Reads to Target** - Switch primary to target
+5. **Phase 5: Connect Directly to Target** - Final cutover, remove proxy
 
-## Phase 1: Proxy Deployment (Origin Only)
+> **Important:** This lab follows the official DataStax ZDM process as documented at https://docs.datastax.com/en/data-migration/introduction.html
+
+## Preparation: Setup and Verification
 
 ### Step 0: Ensure HCD Target is cleared
 ```bash
@@ -89,13 +92,15 @@ cqlsh zdm-proxy 9042 -e "SELECT COUNT(*) FROM training.users;"
 exit
 ```
 
-## Phase 2: Enable Dual Writes
+## Phase 1: Deploy ZDM Proxy and Connect Client Applications
+
+In this phase, we deploy ZDM Proxy and connect applications to it. This activates the dual-write logic: writes are sent to both origin and target databases, while reads are executed on the origin only.
 
 ### Step 4: Enable Dual-Write Mode
 
 The ZDM Proxy is already configured for dual-write mode. This is the "cutting point" - from this moment forward, all new writes will go to both DSE (Origin) and HCD (Target), while reads continue from DSE only.
 
-**Important:** We enable dual-writes BEFORE migrating historical data. This ensures the Target never falls behind while we backfill old data.
+> **Key Concept:** Phase 1 enables dual-writes BEFORE migrating historical data. This ensures the target never falls behind while we backfill old data in Phase 2.
 
 ```bash
 # Access tools container
@@ -200,92 +205,153 @@ curl -s http://localhost:14001/metrics | grep "zdm_proxy_inflight_requests_total
 - `zdm_proxy_failed_writes_total{failed_on="target"}` - Writes that failed on Target only (expected during initial setup)
 - `zdm_proxy_failed_writes_total{failed_on="both"}` - Critical failures (investigate immediately)
 
-## Phase 3: Backfill Historical Data
+## Phase 2: Migrate and Validate Data
 
-### Step 7: Migrate Historical Data
+In this phase, we use Cassandra Data Migrator (CDM) to copy existing data to the target database. ZDM Proxy continues dual writes, so we can focus on migrating data that existed before ZDM Proxy was connected.
 
-Now that dual-writes are active, we can safely migrate historical data from DSE to HCD. Any data updated during this process will be handled correctly by the dual-write mechanism.
+> **Why CDM:** CDM is the recommended tool for ZDM backfill operations. It provides superior performance through Spark-based parallel processing, built-in validation with DiffData, resumability, TTL/writetime preservation, and guardrails to prevent migration issues.
+
+### Step 7: Migrate Historical Data with CDM
+
+Now that dual-writes are active, we can safely migrate historical data from DSE to HCD using CDM. Any data updated during this process will be handled correctly by the dual-write mechanism.
+
+**CDM Benefits:**
+- **Performance**: Spark-based parallel processing handles multi-TB datasets efficiently
+- **Validation**: Built-in DiffData job ensures consistency
+- **Resumability**: Can resume interrupted migrations without starting over
+- **Data Fidelity**: Preserves TTL and writetime values
+- **Guardrails**: Prevents migration of oversized rows that could cause issues
+- **AutoCorrect**: Automatically fixes missing/mismatched data
 
 ```bash
-# Access tools container
-docker exec -it tools bash
+# Migrate users table
+echo "=== Migrating users table ==="
+docker exec spark-cdm spark-submit \
+  --properties-file /app/config/cdm.properties \
+  --conf spark.cdm.schema.origin.keyspaceTable="training.users" \
+  --master 'local[*]' \
+  --driver-memory 2g \
+  --executor-memory 2g \
+  --class com.datastax.cdm.job.Migrate \
+  /assets/cassandra-data-migrator-5.6.3.jar \
+  2>&1 | tee cdm-logs/migrate-users.log
 
-# Export data from DSE
-echo "Exporting historical data from DSE..."
-dsbulk unload \
-  -h dse-node \
-  -k training \
-  -t users \
-  -url /data/export/users
+# Migrate products table
+echo "=== Migrating products table ==="
+docker exec spark-cdm spark-submit \
+  --properties-file /app/config/cdm.properties \
+  --conf spark.cdm.schema.origin.keyspaceTable="training.products" \
+  --master 'local[*]' \
+  --driver-memory 2g \
+  --executor-memory 2g \
+  --class com.datastax.cdm.job.Migrate \
+  /assets/cassandra-data-migrator-5.6.3.jar \
+  2>&1 | tee cdm-logs/migrate-products.log
 
-dsbulk unload \
-  -h dse-node \
-  -k training \
-  -t products \
-  -url /data/export/products
+# Migrate orders table
+echo "=== Migrating orders table ==="
+docker exec spark-cdm spark-submit \
+  --properties-file /app/config/cdm.properties \
+  --conf spark.cdm.schema.origin.keyspaceTable="training.orders" \
+  --master 'local[*]' \
+  --driver-memory 2g \
+  --executor-memory 2g \
+  --class com.datastax.cdm.job.Migrate \
+  /assets/cassandra-data-migrator-5.6.3.jar \
+  2>&1 | tee cdm-logs/migrate-orders.log
 
-dsbulk unload \
-  -h dse-node \
-  -k training \
-  -t orders \
-  -url /data/export/orders
+# Migrate user_activity table
+echo "=== Migrating user_activity table ==="
+docker exec spark-cdm spark-submit \
+  --properties-file /app/config/cdm.properties \
+  --conf spark.cdm.schema.origin.keyspaceTable="training.user_activity" \
+  --master 'local[*]' \
+  --driver-memory 2g \
+  --executor-memory 2g \
+  --class com.datastax.cdm.job.Migrate \
+  /assets/cassandra-data-migrator-5.6.3.jar \
+  2>&1 | tee cdm-logs/migrate-user_activity.log
+```
 
-dsbulk unload \
-  -h dse-node \
-  -k training \
-  -t user_activity \
-  -url /data/export/user_activity
+### Step 8: Validate Migration with CDM
 
-# Import data to HCD
-echo "Importing historical data to HCD..."
-dsbulk load \
-  -h hcd-node \
-  -k training \
-  -t users \
-  -url /data/export/users
+After migrating the data, use CDM's DiffData job to validate consistency:
 
-dsbulk load \
-  -h hcd-node \
-  -k training \
-  -t products \
-  -url /data/export/products
+```bash
+# Validate users table
+echo "=== Validating users table ==="
+docker exec spark-cdm spark-submit \
+  --properties-file /app/config/cdm.properties \
+  --conf spark.cdm.schema.origin.keyspaceTable="training.users" \
+  --master 'local[*]' \
+  --driver-memory 2g \
+  --executor-memory 2g \
+  --class com.datastax.cdm.job.DiffData \
+  /assets/cassandra-data-migrator-5.6.3.jar \
+  2>&1 | tee cdm-logs/diffdata-users.log
 
-dsbulk load \
-  -h hcd-node \
-  -k training \
-  -t orders \
-  -url /data/export/orders
+# Validate products table
+echo "=== Validating products table ==="
+docker exec spark-cdm spark-submit \
+  --properties-file /app/config/cdm.properties \
+  --conf spark.cdm.schema.origin.keyspaceTable="training.products" \
+  --master 'local[*]' \
+  --driver-memory 2g \
+  --executor-memory 2g \
+  --class com.datastax.cdm.job.DiffData \
+  /assets/cassandra-data-migrator-5.6.3.jar \
+  2>&1 | tee cdm-logs/diffdata-products.log
 
-dsbulk load \
-  -h hcd-node \
-  -k training \
-  -t user_activity \
-  -url /data/export/user_activity
+# Validate orders table
+echo "=== Validating orders table ==="
+docker exec spark-cdm spark-submit \
+  --properties-file /app/config/cdm.properties \
+  --conf spark.cdm.schema.origin.keyspaceTable="training.orders" \
+  --master 'local[*]' \
+  --driver-memory 2g \
+  --executor-memory 2g \
+  --class com.datastax.cdm.job.DiffData \
+  /assets/cassandra-data-migrator-5.6.3.jar \
+  2>&1 | tee cdm-logs/diffdata-orders.log
+
+# Validate user_activity table
+echo "=== Validating user_activity table ==="
+docker exec spark-cdm spark-submit \
+  --properties-file /app/config/cdm.properties \
+  --conf spark.cdm.schema.origin.keyspaceTable="training.user_activity" \
+  --master 'local[*]' \
+  --driver-memory 2g \
+  --executor-memory 2g \
+  --class com.datastax.cdm.job.DiffData \
+  /assets/cassandra-data-migrator-5.6.3.jar \
+  2>&1 | tee cdm-logs/diffdata-user_activity.log
 
 # Verify data counts match
-echo "=== Verifying backfill ==="
+echo "=== Verifying row counts ==="
 echo "DSE counts:"
-cqlsh dse-node -e "SELECT COUNT(*) FROM training.users;"
-cqlsh dse-node -e "SELECT COUNT(*) FROM training.products;"
-cqlsh dse-node -e "SELECT COUNT(*) FROM training.orders;"
-cqlsh dse-node -e "SELECT COUNT(*) FROM training.user_activity;"
+docker exec dse-node cqlsh -e "SELECT COUNT(*) FROM training.users;"
+docker exec dse-node cqlsh -e "SELECT COUNT(*) FROM training.products;"
+docker exec dse-node cqlsh -e "SELECT COUNT(*) FROM training.orders;"
+docker exec dse-node cqlsh -e "SELECT COUNT(*) FROM training.user_activity;"
 
 echo "HCD counts:"
-cqlsh hcd-node -e "SELECT COUNT(*) FROM training.users;"
-cqlsh hcd-node -e "SELECT COUNT(*) FROM training.products;"
-cqlsh hcd-node -e "SELECT COUNT(*) FROM training.orders;"
-cqlsh hcd-node -e "SELECT COUNT(*) FROM training.user_activity;"
-
-exit
+docker exec hcd-node cqlsh -e "SELECT COUNT(*) FROM training.users;"
+docker exec hcd-node cqlsh -e "SELECT COUNT(*) FROM training.products;"
+docker exec hcd-node cqlsh -e "SELECT COUNT(*) FROM training.orders;"
+docker exec hcd-node cqlsh -e "SELECT COUNT(*) FROM training.user_activity;"
 ```
 
 **Key Point:** Because dual-writes are already enabled, any data that gets updated during this backfill process will be correctly synchronized by the ZDM Proxy. This prevents data gaps or inconsistencies.
 
-## Phase 4: Enable Dual Reads
+## Phase 3: Enable Asynchronous Dual Reads (Optional but Recommended)
 
-### Step 8: Configure Read Routing
+This phase is optional but recommended. Enable asynchronous dual reads to test the target database's ability to handle production workload before permanently switching applications.
+
+### Step 9: Configure Read Routing
 
 For this lab, we'll simulate read routing by updating the ZDM Proxy configuration. In production, you would do this gradually.
+
+> **Official Guidance:** This phase tests target performance without impacting applications. Asynchronous reads are sent to target while synchronous reads continue from origin.
 
 ```bash
 # View current read mode
@@ -295,20 +361,6 @@ docker exec zdm-proxy cat /config/zdm-config.yml | grep -A 2 "read_mode"
 # read_mode: "PRIMARY_ONLY"
 # primary_cluster: "ORIGIN"
 # This means all reads go to DSE
-```
-
-### Step 9: Validate Data Consistency
-
-Before enabling dual reads, verify that both clusters have consistent data:
-
-```bash
-# Access tools container
-docker exec -it tools bash
-
-# Run the validation script
-python3 /scripts/validate_zdm_migration.py
-
-exit
 ```
 
 ### Step 10: Test Read Performance
@@ -323,7 +375,21 @@ docker exec -it tools bash
 exit
 ```
 
-### Step 11: Application Simulation
+### Step 11: Validate Data Consistency
+
+Before proceeding, verify that both clusters have consistent data:
+
+```bash
+# Access tools container
+docker exec -it tools bash
+
+# Run the validation script
+python3 /scripts/validate_zdm_migration.py
+
+exit
+```
+
+### Step 12: Application Simulation
 
 Simulate realistic application traffic through the ZDM Proxy to test dual-write and dual-read functionality:
 
@@ -377,9 +443,13 @@ Writes: 15 (25.0%)
 ✅ All operations completed successfully!
 ```
 
-## Phase 5: Cutover to Target
+## Phase 4: Route Reads to the Target Database
 
-### Step 12: Monitor ZDM Proxy
+In this phase, we switch read routing to the target database so all reads are executed on target. Writes are still sent to both databases in case rollback is needed.
+
+### Step 13: Monitor ZDM Proxy Before Switching Reads
+
+Before switching reads to target, verify the system is stable:
 
 ```bash
 # View ZDM Proxy metrics
@@ -395,7 +465,7 @@ echo "=== Error Rates ==="
 curl -s http://localhost:14001/metrics | grep "zdm_proxy_errors_total"
 ```
 
-### Step 13: Monitor Cluster Health
+### Step 14: Monitor Cluster Health
 
 ```bash
 # Check DSE cluster
@@ -415,10 +485,10 @@ echo "=== HCD Table Statistics ==="
 docker exec hcd-node nodetool tablestats training.users | grep -E "Table:|Number of partitions|Memtable|Compacted"
 ```
 
-### Step 14: Prepare for Cutover
+### Step 15: Switch Primary Cluster to Target
 
 ```bash
-# Final validation before cutover
+# Final validation before switching reads
 docker exec -it tools bash
 
 # Run final consistency check
@@ -434,13 +504,32 @@ nodetool -h hcd-node compactionstats
 exit
 ```
 
-### Step 15: Simulate Cutover
+> **Production Step:** In production, you would update ZDM Proxy config to set `primary_cluster: "TARGET"` and restart the proxy. This switches all reads to target while maintaining dual-writes for rollback capability.
+
+For this lab, we'll simulate the target-primary state by testing read performance:
+
+```bash
+# Access tools container
+docker exec -it tools bash
+
+# Test read performance from target
+/scripts/test_read_performance.sh
+
+exit
+```
+
+## Phase 5: Connect Directly to the Target Database (Final Cutover)
+
+In the final phase, we move client applications off ZDM Proxy and connect them directly to the target database. Once this happens, the migration is complete.
+
+### Step 16: Simulate Final Cutover
 
 In a real migration, you would:
-1. Update ZDM Proxy config to set `primary_cluster: "TARGET"`
-2. Restart ZDM Proxy
+1. Update application connection strings from `zdm-proxy-host` to `target-node1,target-node2,target-node3`
+2. Restart applications gradually
 3. Monitor for issues
-4. Eventually remove ZDM Proxy and connect directly to HCD
+4. Decommission ZDM Proxy
+5. Backup and optionally decommission origin cluster
 
 For this lab, we'll simulate by testing direct HCD connections:
 
@@ -470,6 +559,8 @@ WHERE status = 'active' LIMIT 10 ALLOW FILTERING;
 
 exit
 ```
+
+> **Important:** After Phase 5, the origin database is no longer synchronized with the target database. The origin won't contain writes that happen after you disconnect ZDM Proxy.
 
 ## Troubleshooting
 
@@ -524,7 +615,8 @@ You have successfully completed this exercise when:
 
 - ✅ ZDM Proxy deployed and routing traffic through Origin
 - ✅ Dual-write mode enabled (writes go to both clusters)
-- ✅ Historical data backfilled from DSE to HCD using DSBulk
+- ✅ Historical data backfilled from DSE to HCD using CDM
+- ✅ Data validated using CDM DiffData job
 - ✅ Data consistency validated between clusters
 - ✅ Dual-read mode tested successfully
 - ✅ Monitoring metrics are available
@@ -532,14 +624,31 @@ You have successfully completed this exercise when:
 
 ## Key Takeaways
 
-1. **5-Phase Approach**: ZDM follows a structured methodology: Proxy Deployment → Dual Writes → Backfill → Dual Reads → Cutover
-2. **Dual-Write First**: Enable dual-writes BEFORE migrating historical data to prevent data gaps
+1. **Official 5-Phase Approach**:
+   - **Preparation**: Plan and prepare infrastructure
+   - **Phase 1**: Deploy ZDM Proxy and connect applications (dual-write activation)
+   - **Phase 2**: Migrate and validate data (use CDM for production, DSBulk for small datasets)
+   - **Phase 3**: Enable asynchronous dual reads (optional, test target performance)
+   - **Phase 4**: Route reads to target (target becomes primary)
+   - **Phase 5**: Connect directly to target (final cutover, migration complete)
+
+2. **Dual-Write First**: Enable dual-writes in Phase 1 BEFORE migrating historical data in Phase 2 to prevent data gaps
+
 3. **Safe Backfill**: Historical data migration happens while dual-writes are active, ensuring consistency
-4. **Zero Downtime**: ZDM Proxy enables true zero-downtime migration
-5. **Gradual Migration**: Read traffic can be shifted gradually from Origin to Target
-6. **Monitoring**: Comprehensive metrics for tracking migration progress
-7. **Validation**: Continuous validation ensures data consistency
-8. **Rollback**: Easy to rollback by changing proxy configuration
+
+4. **Zero Downtime**: ZDM Proxy enables true zero-downtime migration with rollback capability until Phase 5
+
+5. **Gradual Migration**: Read traffic can be shifted gradually from origin to target
+
+6. **Schema Matching Required**: Origin and target must have matching schemas (keyspace names, table names, column names, data types)
+
+7. **Monitoring**: Comprehensive metrics for tracking migration progress
+
+8. **Validation**: Continuous validation ensures data consistency
+
+9. **Rollback Capability**: Can rollback at any point before Phase 5 by changing proxy configuration
+
+10. **Production Backfill Tool**: Use **CDM (not DSBulk)** for production backfill operations - CDM provides superior performance, validation, and data fidelity for large-scale migrations
 
 ## Next Steps
 
