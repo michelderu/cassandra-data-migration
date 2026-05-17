@@ -609,9 +609,9 @@ netstat -tlnp | grep 9042
 # Colima: colima start --cpu 6 --memory 12
 
 # 5. Clean up and restart
-docker-compose down -v
+docker compose down -v
 docker system prune -a
-docker-compose up -d
+docker compose up -d
 
 # 6. Check disk space
 df -h

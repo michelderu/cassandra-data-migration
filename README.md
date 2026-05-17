@@ -117,10 +117,10 @@ colima start --arch aarch64 --vm-type=vz --vz-rosetta --cpu 6 --memory 12 --disk
 cd lab
 
 # Start the lab environment
-docker-compose up -d
+docker compose up -d
 
 # Verify containers are running
-docker-compose ps
+docker compose ps
 ```
 
 **Note**: Rosetta 2 is required for ZDM Proxy on Apple Silicon. See [`lab/ARM64-NOTES.md`](lab/ARM64-NOTES.md) for details.
@@ -135,10 +135,10 @@ colima start --cpu 4 --memory 8 --disk 50
 cd lab
 
 # Start the lab environment
-docker-compose up -d
+docker compose up -d
 
 # Verify containers are running
-docker-compose ps
+docker compose ps
 ```
 
 ### Using Docker Desktop
@@ -148,10 +148,10 @@ docker-compose ps
 cd lab
 
 # Start the lab environment
-docker-compose up -d
+docker compose up -d
 
 # Verify containers are running
-docker-compose ps
+docker compose ps
 ```
 
 ## Training Path

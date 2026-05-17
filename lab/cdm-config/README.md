@@ -85,7 +85,7 @@ After migration, validate data consistency using:
 
 1. **Quick validation** with Python script:
    ```bash
-   docker exec migration-tools python3 /scripts/validate_migration.py
+   docker exec tools python3 /scripts/validate_migration.py
    ```
 
 2. **Detailed validation** with CDM DiffData:

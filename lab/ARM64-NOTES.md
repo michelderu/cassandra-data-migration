@@ -65,14 +65,14 @@ colima start --arch aarch64 --vm-type=vz --vz-rosetta --cpu 6 --memory 12 --disk
 cd lab
 
 # Start all services (including ZDM Proxy)
-docker-compose up -d
+docker compose up -d
 
 # Wait for services to start (3-5 minutes)
 # Watch the logs
-docker-compose logs -f
+docker compose logs -f
 
 # Or check status
-docker-compose ps
+docker compose ps
 ```
 
 ### Step 3: Verify Clusters
@@ -177,7 +177,7 @@ docker logs zdm-proxy
 
 ```bash
 # Connect via ZDM Proxy (port 9044)
-docker exec -it migration-tools cqlsh zdm-proxy 9042
+docker exec -it tools cqlsh zdm-proxy 9042
 
 # Run a test query
 cqlsh> SELECT * FROM training.users LIMIT 5;
@@ -222,7 +222,7 @@ open http://localhost:14001/metrics
 
 ```bash
 # Access migration tools
-docker exec -it migration-tools bash
+docker exec -it tools bash
 
 # Run validation scripts from Exercise 5
 /scripts/validate_row_counts.sh
@@ -262,10 +262,10 @@ colima start --arch aarch64 --vm-type=vz --vz-rosetta --cpu 6 --memory 12 --disk
 
 # Step 2: Start the lab
 cd lab
-docker-compose up -d
+docker compose up -d
 
 # Step 3: Wait for clusters to start (3-5 minutes)
-watch docker-compose ps
+watch docker compose ps
 
 # Step 4: Verify everything is running
 docker exec dse-node nodetool status

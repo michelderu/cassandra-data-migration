@@ -11,95 +11,34 @@ This lab environment provides a complete setup for practicing DSE to HCD migrati
 - **Monitoring** - Prometheus and Grafana for observability
 - **Data Generator** - For creating test data
 
-## Prerequisites
+## ⚙️ Prerequisites
 
-### Using Colima (macOS/Linux - Recommended)
+### 🖥️ Supported Platforms
+- 🍎 **macOS** (Intel or Apple Silicon)
+- 🪟 **Windows 10/11** 64-bit
+- 🐧 **Linux** (Ubuntu 20.04+, RHEL 8+, Fedora 43+)
 
-#### For Apple Silicon (M1/M2/M3) - **IMPORTANT**
+### 📦 Container runtime - **Docker/Podman**
 
-```bash
-# Install Colima
-brew install colima
+Ensure you have your runtime of choice set up. Refer to [Container Fundamentals](https://github.com/michelderu/container-fundamentals) and the specific setup instructions for your architecture [here](https://github.com/michelderu/container-fundamentals/blob/main/course/09-setup-linux-macos-windows.md).
 
-# Start Colima with Rosetta 2 for full compatibility (including ZDM Proxy)
-colima start --arch aarch64 --vm-type=vz --vz-rosetta --cpu 6 --memory 12 --disk 60
+**Required Runtime and Tools**
 
-# Verify Colima is running with Rosetta 2
-colima status
-# Should show: vz-rosetta: true
-```
-
-**Why Rosetta 2?** ZDM Proxy requires x86_64 architecture. Rosetta 2 enables seamless emulation with minimal performance overhead (~5%). See [`ARM64-NOTES.md`](ARM64-NOTES.md) for details.
-
-#### For Intel/AMD (x86_64)
-
-```bash
-# Install Colima
-brew install colima
-
-# Start Colima with sufficient resources
-colima start --cpu 4 --memory 8 --disk 50
-
-# Verify Colima is running
-colima status
-```
-
-### Using Docker Desktop
-
-Ensure Docker Desktop is configured with:
-- **CPUs**: 4 or more
-- **Memory**: 8GB or more
-- **Disk**: 50GB or more
+- Container runtime
+   - Docker or Podman
 
 ## Quick Start
 
-### 1. Start the Lab Environment
-
 ```bash
-# Navigate to lab directory
 cd lab
-
-# Start all services
-docker-compose up -d
-
-# This will start:
-# - 1 DSE node
-# - 1 HCD node
-# - ZDM Proxy
-# - Monitoring stack
-# - Tools container
+docker compose up -d
 ```
 
-### 2. Wait for Clusters to Initialize
+This starts the DSE and HCD nodes, ZDM proxy, monitoring stack, and tools container. Allow 3–5 minutes for services to become healthy.
 
-```bash
-# Check status (this may take 3-5 minutes)
-docker-compose ps
+**Next:** complete [Exercise 1: Environment Setup](exercises/01-environment-setup.md) to verify clusters, create schema, and load sample data.
 
-# Wait for all services to be healthy
-watch -n 5 'docker-compose ps'
-
-# Check DSE cluster status
-docker exec dse-node nodetool status
-
-# Check HCD cluster status
-docker exec hcd-node nodetool status
-```
-
-### 3. Verify Connectivity
-
-```bash
-# Connect to DSE
-docker exec -it dse-node cqlsh
-# Should see: Connected to DSE_Cluster
-
-# Connect to HCD
-docker exec -it hcd-node cqlsh
-# Should see: Connected to HCD_Cluster
-
-# Exit cqlsh
-exit
-```
+For platform-specific runtime setup (Colima, Apple Silicon), see the [main README](../README.md#quick-start) and [`ARM64-NOTES.md`](ARM64-NOTES.md).
 
 ## Lab Architecture
 
@@ -268,7 +207,7 @@ docker exec -it dse-node cqlsh
 docker exec -it hcd-node cqlsh
 
 # Via ZDM Proxy (after configuration)
-docker exec -it migration-tools cqlsh zdm-proxy 9042
+docker exec -it tools cqlsh zdm-proxy 9042
 
 # From host machine
 cqlsh localhost 9042  # DSE
@@ -300,7 +239,7 @@ See [`monitoring/README.md`](monitoring/README.md) for detailed dashboard docume
 
 ```bash
 # Access tools container
-docker exec -it migration-tools bash
+docker exec -it tools bash
 
 # Available tools:
 # - cqlsh
@@ -315,9 +254,9 @@ docker exec -it migration-tools bash
 
 The lab includes several hands-on exercises:
 
-1. **[Exercise 1: Environment Setup](exercises/01-environment-setup.md)**
-   - Verify cluster health
-   - Create test schema
+1. **[Exercise 1: Environment Setup](exercises/01-environment-setup.md)** — start here after Quick Start
+   - Verify cluster health and connectivity
+   - Create test schema on both clusters
    - Generate sample data
 
 2. **[Exercise 2: Native Tooling Migration](exercises/02-native-tooling.md)**
@@ -390,19 +329,19 @@ docker exec dse-node nodetool repair myapp
 
 ```bash
 # View all containers
-docker-compose ps
+docker compose ps
 
 # View logs
-docker-compose logs -f [service_name]
+docker compose logs -f [service_name]
 
 # Restart service
-docker-compose restart [service_name]
+docker compose restart [service_name]
 
 # Stop all services
-docker-compose down
+docker compose down
 
 # Stop and remove volumes
-docker-compose down -v
+docker compose down -v
 ```
 
 ## Troubleshooting
@@ -421,7 +360,7 @@ colima stop
 colima start --cpu 6 --memory 12 --disk 60
 
 # Check logs
-docker-compose logs
+docker compose logs
 ```
 
 ### Clusters Not Forming
@@ -435,7 +374,7 @@ docker network inspect lab_cassandra-migration
 # (Single node setup - no inter-node communication needed)
 
 # Restart cluster
-docker-compose restart dse-node hcd-node
+docker compose restart dse-node hcd-node
 ```
 
 ### Connection Issues
@@ -490,17 +429,17 @@ colima start --cpu 4 --memory 8 --disk 60
 
 ```bash
 # Stop all containers
-docker-compose down
+docker compose down
 
 # Stop and remove volumes (WARNING: deletes all data)
-docker-compose down -v
+docker compose down -v
 ```
 
 ### Complete Cleanup
 
 ```bash
 # Remove all lab resources
-docker-compose down -v --rmi all
+docker compose down -v --rmi all
 
 # Clean up Docker system
 docker system prune -a --volumes
@@ -531,13 +470,6 @@ colima stop
 2. **Tune compaction** - Adjust compaction settings for faster operations
 3. **Use SSD** - Ensure Docker/Colima uses SSD storage
 4. **Limit logging** - Reduce log verbosity if needed
-
-## Next Steps
-
-1. Complete [Exercise 1: Environment Setup](exercises/01-environment-setup.md)
-2. Review the [documentation](../docs/) for migration strategies
-3. Practice different migration approaches
-4. Experiment with monitoring and validation
 
 ## Support
 

@@ -31,14 +31,14 @@ The `spark-cdm` container is already configured in `docker-compose.yml` with pre
 
 ### Step 1: Start CDM Container
 
-The CDM container starts automatically with `docker-compose up`, but let's verify it's running:
+The CDM container starts automatically with `docker compose up`, but let's verify it's running:
 
 ```bash
 # Check if spark-cdm container is running
-docker-compose ps spark-cdm
+docker compose ps spark-cdm
 
 # If not running, start it
-docker-compose up -d spark-cdm
+docker compose up -d spark-cdm
 ```
 
 ### Step 2: Verify CDM Installation

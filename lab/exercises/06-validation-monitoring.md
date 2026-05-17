@@ -591,7 +591,7 @@ docker exec tools /scripts/validate_row_counts.sh
 curl http://localhost:9090/api/v1/targets
 
 # Restart Prometheus
-docker-compose restart prometheus
+docker compose restart prometheus
 
 # Check logs
 docker logs prometheus
@@ -645,7 +645,7 @@ docker exec tools tar -czf /exports/migration_reports.tar.gz /exports/*.txt
 
 # Optional: Reset environment
 cd lab
-docker-compose down -v
+docker compose down -v
 ```
 
 ---

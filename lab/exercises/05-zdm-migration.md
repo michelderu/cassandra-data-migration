@@ -50,13 +50,13 @@ TRUNCATE training.user_activity
 
 ```bash
 # Check if ZDM Proxy is running
-docker-compose ps zdm-proxy
+docker compose ps zdm-proxy
 
 # Check ZDM Proxy logs
 docker logs zdm-proxy
 
 # If not running, start it
-docker-compose up -d zdm-proxy
+docker compose up -d zdm-proxy
 ```
 
 ### Step 2: Configure ZDM Proxy
@@ -578,7 +578,7 @@ docker exec tools ping dse-node
 docker exec tools ping hcd-node
 
 # Restart proxy
-docker-compose restart zdm-proxy
+docker compose restart zdm-proxy
 ```
 
 ### Issue: Writes not reaching both clusters
@@ -658,7 +658,7 @@ Proceed to [Exercise 6: Validation and Monitoring](06-validation-monitoring.md) 
 
 ```bash
 # Stop ZDM Proxy
-docker-compose stop zdm-proxy
+docker compose stop zdm-proxy
 
 # Remove test data
 docker exec hcd-node cqlsh -e "
@@ -667,7 +667,7 @@ DELETE FROM training.users WHERE username LIKE 'app_user_%' ALLOW FILTERING;
 "
 
 # Restart ZDM Proxy
-docker-compose start zdm-proxy
+docker compose start zdm-proxy
 ```
 
 ---

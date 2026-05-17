@@ -55,10 +55,10 @@ System-level metrics (requires node-exporter):
 
 1. Start the lab environment:
    ```bash
-   docker-compose up -d
+   docker compose up -d
    ```
 
-2. Wait for Grafana to start (check with `docker-compose ps`)
+2. Wait for Grafana to start (check with `docker compose ps`)
 
 3. Open Grafana in your browser:
    ```
@@ -93,14 +93,14 @@ During Exercise 4 (ZDM Migration), use these dashboards to:
 ## Troubleshooting
 
 ### Dashboards not appearing
-- Check Grafana logs: `docker-compose logs grafana`
+- Check Grafana logs: `docker compose logs grafana`
 - Verify volume mounts in [`docker-compose.yml`](../docker-compose.yml)
 - Ensure dashboard JSON files are valid
 
 ### No data in dashboards
 - Verify Prometheus is scraping ZDM Proxy: http://localhost:9090/targets
 - Check ZDM Proxy metrics endpoint: http://localhost:14001/metrics
-- Ensure ZDM Proxy is running: `docker-compose ps zdm-proxy`
+- Ensure ZDM Proxy is running: `docker compose ps zdm-proxy`
 
 ### Prometheus connection issues
 - Check datasource configuration in Grafana UI

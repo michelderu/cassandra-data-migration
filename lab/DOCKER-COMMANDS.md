@@ -19,44 +19,44 @@ This guide provides Docker-specific commands for working with the lab environmen
 
 ```bash
 # Start all services
-docker-compose up -d
+docker compose up -d
 
 # Start specific service
-docker-compose up -d dse-node
+docker compose up -d dse-node
 
 # Stop all services
-docker-compose down
+docker compose down
 
 # Stop and remove volumes (WARNING: deletes all data)
-docker-compose down -v
+docker compose down -v
 
 # Restart specific service
-docker-compose restart dse-node
+docker compose restart dse-node
 
 # Stop specific service
-docker-compose stop hcd-node
+docker compose stop hcd-node
 
 # Start stopped service
-docker-compose start hcd-node
+docker compose start hcd-node
 ```
 
 ### Viewing Status
 
 ```bash
 # View all containers
-docker-compose ps
+docker compose ps
 
 # View specific service
-docker-compose ps dse-node
+docker compose ps dse-node
 
 # View logs
-docker-compose logs -f dse-node
+docker compose logs -f dse-node
 
 # View logs for all services
-docker-compose logs -f
+docker compose logs -f
 
 # View last 100 lines
-docker-compose logs --tail=100 dse-node
+docker compose logs --tail=100 dse-node
 ```
 
 ### Accessing Containers
@@ -69,7 +69,7 @@ docker exec -it dse-node bash
 docker exec -it hcd-node bash
 
 # Access migration tools container
-docker exec -it migration-tools bash
+docker exec -it tools bash
 
 # Access as root user
 docker exec -u root -it dse-node bash
@@ -149,7 +149,7 @@ docker exec -it dse-node cqlsh
 docker exec -it hcd-node cqlsh
 
 # Connect through ZDM Proxy
-docker exec -it migration-tools cqlsh zdm-proxy 9042
+docker exec -it tools cqlsh zdm-proxy 9042
 
 # Execute single query on DSE
 docker exec dse-node cqlsh -e "SELECT COUNT(*) FROM training.users;"
@@ -188,14 +188,14 @@ docker exec dse-node nodetool clearsnapshot --all
 
 ```bash
 # Export data using COPY (from within container)
-docker exec -it migration-tools bash -c "
+docker exec -it tools bash -c "
 cqlsh dse-node -e \"
 COPY training.users TO '/exports/users.csv' WITH HEADER = true;
 \"
 "
 
 # Import data using COPY
-docker exec -it migration-tools bash -c "
+docker exec -it tools bash -c "
 cqlsh hcd-node -e \"
 COPY training.users FROM '/exports/users.csv' WITH HEADER = true;
 \"
@@ -203,14 +203,14 @@ COPY training.users FROM '/exports/users.csv' WITH HEADER = true;
 
 # Copy files between host and container
 docker cp dse-node:/tmp/data.csv ./data.csv
-docker cp ./data.csv migration-tools:/exports/
+docker cp ./data.csv tools:/exports/
 ```
 
 ### DSBulk Operations
 
 ```bash
 # Export with DSBulk
-docker exec -it migration-tools bash -c "
+docker exec -it tools bash -c "
 dsbulk unload \
   -h dse-node \
   -k training \
@@ -219,7 +219,7 @@ dsbulk unload \
 "
 
 # Import with DSBulk
-docker exec -it migration-tools bash -c "
+docker exec -it tools bash -c "
 dsbulk load \
   -h hcd-node \
   -k training \
@@ -378,26 +378,26 @@ docker exec dse-node ping -c 3 hcd-node
 docker exec dse-node netstat -tlnp | grep 9042
 
 # Test port connectivity
-docker exec migration-tools telnet dse-node 9042
+docker exec tools telnet dse-node 9042
 ```
 
 ### Restart Strategies
 
 ```bash
 # Restart single node
-docker-compose restart dse-node
+docker compose restart dse-node
 
 # Restart cluster (DSE)
-docker-compose restart dse-node dse-node dse-node
+docker compose restart dse-node dse-node dse-node
 
 # Restart cluster (HCD)
-docker-compose restart hcd-node hcd-node hcd-node
+docker compose restart hcd-node hcd-node hcd-node
 
 # Restart all services
-docker-compose restart
+docker compose restart
 
 # Force recreate container
-docker-compose up -d --force-recreate dse-node
+docker compose up -d --force-recreate dse-node
 ```
 
 ## Network Operations
@@ -419,7 +419,7 @@ docker network inspect lab_cassandra-migration | jq '.[0].Containers'
 
 ```bash
 # View port mappings
-docker-compose ps
+docker compose ps
 
 # Check specific port
 docker port dse-node 9042
@@ -432,11 +432,11 @@ docker port dse-node
 
 ```bash
 # Test DNS resolution
-docker exec migration-tools nslookup dse-node
-docker exec migration-tools nslookup hcd-node
+docker exec tools nslookup dse-node
+docker exec tools nslookup hcd-node
 
 # Test with ping
-docker exec migration-tools ping -c 3 dse-node
+docker exec tools ping -c 3 dse-node
 ```
 
 ## Volume Management
@@ -481,12 +481,12 @@ Add these to your `~/.bashrc` or `~/.zshrc`:
 # Container access
 alias dse1='docker exec -it dse-node bash'
 alias hcd1='docker exec -it hcd-node bash'
-alias tools='docker exec -it migration-tools bash'
+alias tools='docker exec -it tools bash'
 
 # CQL access
 alias cqldse='docker exec -it dse-node cqlsh'
 alias cqlhcd='docker exec -it hcd-node cqlsh'
-alias cqlzdm='docker exec -it migration-tools cqlsh zdm-proxy 9042'
+alias cqlzdm='docker exec -it tools cqlsh zdm-proxy 9042'
 
 # Cluster status
 alias dse-status='docker exec dse-node nodetool status'
@@ -498,9 +498,9 @@ alias hcd-logs='docker logs -f hcd-node'
 alias zdm-logs='docker logs -f zdm-proxy'
 
 # Lab management
-alias lab-up='cd ~/projects/cassandra-data-migration/lab && docker-compose up -d'
-alias lab-down='cd ~/projects/cassandra-data-migration/lab && docker-compose down'
-alias lab-status='cd ~/projects/cassandra-data-migration/lab && docker-compose ps'
+alias lab-up='cd ~/projects/cassandra-data-migration/lab && docker compose up -d'
+alias lab-down='cd ~/projects/cassandra-data-migration/lab && docker compose down'
+alias lab-status='cd ~/projects/cassandra-data-migration/lab && docker compose ps'
 ```
 
 ## Common Workflows
@@ -509,19 +509,19 @@ alias lab-status='cd ~/projects/cassandra-data-migration/lab && docker-compose p
 
 ```bash
 # Stop everything
-docker-compose down -v
+docker compose down -v
 
 # Clean up Docker
 docker system prune -a --volumes
 
 # Restart lab
-docker-compose up -d
+docker compose up -d
 
 # Wait for clusters to form
 sleep 60
 
 # Verify
-docker-compose ps
+docker compose ps
 docker exec dse-node nodetool status
 docker exec hcd-node nodetool status
 ```
@@ -530,7 +530,7 @@ docker exec hcd-node nodetool status
 
 ```bash
 # Check all services
-docker-compose ps
+docker compose ps
 
 # Check DSE cluster
 docker exec dse-node nodetool status | grep UN
@@ -620,11 +620,11 @@ colima list
 
 ### Documentation
 
-- Docker Compose: `docker-compose --help`
+- Docker Compose: `docker compose --help`
 - Docker: `docker --help`
 - Nodetool: `docker exec dse-node nodetool help`
 - CQLsh: `docker exec dse-node cqlsh --help`
-- DSBulk: `docker exec migration-tools dsbulk --help`
+- DSBulk: `docker exec tools dsbulk --help`
 
 ### Useful Resources
 
@@ -638,8 +638,8 @@ colima list
 **Quick Start:**
 ```bash
 cd lab
-docker-compose up -d
-docker-compose ps
+docker compose up -d
+docker compose ps
 docker exec dse-node nodetool status
 docker exec hcd-node nodetool status
 ```
@@ -647,12 +647,12 @@ docker exec hcd-node nodetool status
 **Quick Stop:**
 ```bash
 cd lab
-docker-compose down
+docker compose down
 ```
 
 **Emergency Reset:**
 ```bash
 cd lab
-docker-compose down -v
+docker compose down -v
 docker system prune -a --volumes
-docker-compose up -d
+docker compose up -d
