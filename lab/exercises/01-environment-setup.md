@@ -22,7 +22,7 @@
 
 ### Step 1: Start and Verify the Lab
 
-If you followed [Quick Start](../README.md#quick-start), containers should already be up. Otherwise:
+Ensure you're working from the `lab` directory as you CWD (Current Working Directory).
 
 ```bash
 cd lab
@@ -43,7 +43,7 @@ watch -n 5 'docker compose ps'
 ### Step 2: Verify Cluster Health
 
 ```bash
-# DSE — expect one node with status UN in datacenter dc1
+# DSE — expect one node with status UN in datacenter datacenter1
 docker exec dse-node nodetool status
 
 # HCD — expect one node with status UN in datacenter datacenter1
@@ -55,7 +55,7 @@ docker exec hcd-node cqlsh -e "SELECT cluster_name, release_version FROM system.
 ```
 
 **Validation Checklist:**
-- [ ] DSE node shows status "UN" with 256 tokens
+- [ ] DSE node shows status "UN" in datacenter `datacenter1`
 - [ ] HCD node shows status "UN" in datacenter `datacenter1`
 - [ ] Both clusters respond to CQL queries
 
@@ -81,18 +81,11 @@ docker exec dse-node cqlsh -e "DESC KEYSPACE training;"
 
 ### Step 4: Create Schema on HCD
 
+In this step we intentfuly copy the source schema to the target database. In most cases, unless you transform the data on the go, the schemas have to match.
+
 ```bash
 # Export schema from DSE
 docker exec dse-node cqlsh -e "DESC KEYSPACE training;" > /tmp/training_schema.cql
-
-# Modify for HCD (change datacenter name)
-sed 's/dc1/datacenter1/g' /tmp/training_schema.cql > /tmp/training_schema_hcd.cql
-
-# Remove read_repair_chance (removed in Cassandra 4.x)
-sed -E 's/(dclocal_)?read_repair_chance = [0-9.]*( AND)?//g' /tmp/training_schema_hcd.cql \
-  | sed -E '/^[[:space:]]*AND[[:space:]]*$/d' \
-  > /tmp/training_schema_hcd_fixed.cql \
-  && mv /tmp/training_schema_hcd_fixed.cql /tmp/training_schema_hcd.cql
 
 # Create on HCD
 docker exec -i hcd-node cqlsh < /tmp/training_schema_hcd.cql
@@ -104,7 +97,7 @@ docker exec hcd-node cqlsh -e "DESC KEYSPACE training;"
 **Validation Checklist:**
 - [ ] Keyspace `training` created on HCD
 - [ ] All tables match DSE schema
-- [ ] Replication factor adjusted for HCD datacenter
+- [ ] Replication uses `datacenter1` on both clusters
 
 ### Step 5: Generate and Verify Sample Data
 

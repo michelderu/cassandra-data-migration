@@ -39,13 +39,13 @@ mkdir -p /exports/copy
 # Export users table
 cqlsh dse-node -e "
 COPY training.users TO '/exports/copy/users.csv' 
-WITH HEADER = true;
+WITH HEADER = true
 "
 
 # Export products table
 cqlsh dse-node -e "
 COPY training.products TO '/exports/copy/products.csv' 
-WITH HEADER = true;
+WITH HEADER = true
 "
 
 # Export orders table (smaller subset for testing)
@@ -53,7 +53,7 @@ cqlsh dse-node -e "
 COPY training.orders TO '/exports/copy/orders.csv' 
 WITH HEADER = true 
 AND MAXREQUESTS = 10 
-AND PAGESIZE = 100;
+AND PAGESIZE = 100
 "
 
 # Verify exports
@@ -63,9 +63,9 @@ wc -l /exports/copy/*.csv
 
 **Expected Output:**
 ```
-users.csv: ~1001 lines (1000 data + 1 header)
-products.csv: ~501 lines (500 data + 1 header)
-orders.csv: ~2001 lines (2000 data + 1 header)
+users.csv: 1001 lines (1000 data + 1 header)
+products.csv: 501 lines (500 data + 1 header)
+orders.csv: 2001 lines (2000 data + 1 header)
 ```
 
 ### Step 2: Import Data to HCD Using COPY
@@ -76,24 +76,21 @@ orders.csv: ~2001 lines (2000 data + 1 header)
 # Import users
 cqlsh hcd-node -e "
 COPY training.users FROM '/exports/copy/users.csv' 
-WITH HEADER = true;
+WITH HEADER = true
 "
 
 # Import products
 cqlsh hcd-node -e "
 COPY training.products FROM '/exports/copy/products.csv' 
-WITH HEADER = true;
+WITH HEADER = true
 "
 
 # Import orders
 cqlsh hcd-node -e "
 COPY training.orders FROM '/exports/copy/orders.csv' 
 WITH HEADER = true 
-AND CHUNKSIZE = 100;
+AND CHUNKSIZE = 100
 "
-
-# Exit container
-exit
 ```
 
 ### Step 3: Validate COPY Migration
@@ -101,8 +98,10 @@ exit
 Use the validation script to verify the migration:
 
 ```bash
+# Still in tools container
+
 # Run comprehensive validation
-docker exec tools bash -c "
+bash -c "
 pip install -q cassandra-driver && \
 python3 /scripts/validate_migration.py
 "
@@ -144,11 +143,18 @@ Validating table: user_activity
 ✗ Validation failed - investigate discrepancies
 ============================================================
 ```
+| [!INFO]  
+| The validation fails as we didn't copy over the `user_activity` data.
 
 **Validation Checklist:**
 - [ ] All row counts match between DSE and HCD
 - [ ] Sample data validation passes for all tables
 - [ ] No errors during import
+
+Exit the container:
+```bash
+exit
+```
 
 ## Part 2: SSTableLoader Migration
 

@@ -269,7 +269,7 @@ The lab includes several hands-on exercises:
    - Import to HCD
    - Validate results
 
-4. **[Exercise 4: Cassandra Data Migrator (CDM)](exercises/04-cdm-migration.md)** ⭐ NEW
+4. **[Exercise 4: Cassandra Data Migrator (CDM)](exercises/04-cdm-migration.md)**
    - Use pre-configured Spark with CDM
    - Perform cluster-to-cluster migration
    - Validate data with DiffData
@@ -448,29 +448,6 @@ docker system prune -a --volumes
 colima stop
 ```
 
-## Tips and Best Practices
-
-### Resource Management
-
-1. **Start with minimal setup** - Use 1 node per cluster for initial testing
-2. **Monitor resources** - Use `docker stats` to watch resource usage
-3. **Scale gradually** - Add nodes as needed for specific exercises
-4. **Clean up regularly** - Remove unused containers and volumes
-
-### Working with the Lab
-
-1. **Save your work** - Scripts and data in mounted volumes persist
-2. **Use snapshots** - Create snapshots before risky operations
-3. **Document findings** - Keep notes of what you learn
-4. **Experiment safely** - Lab environment is disposable
-
-### Performance Optimization
-
-1. **Adjust heap sizes** - Modify MAX_HEAP_SIZE in docker-compose.yml
-2. **Tune compaction** - Adjust compaction settings for faster operations
-3. **Use SSD** - Ensure Docker/Colima uses SSD storage
-4. **Limit logging** - Reduce log verbosity if needed
-
 ## Support
 
 For issues or questions:
@@ -480,15 +457,6 @@ For issues or questions:
 - Consult main README.md
 
 ## Lab Environment Specifications
-
-### System Requirements
-
-| Component | Minimum | Recommended |
-|-----------|---------|-------------|
-| CPU Cores | 4 | 6-8 |
-| RAM | 8GB | 12-16GB |
-| Disk Space | 30GB | 50GB+ |
-| Network | 100Mbps | 1Gbps |
 
 ### Container Resources
 
@@ -500,12 +468,6 @@ For issues or questions:
 | Tools | 1.0 | 2GB | Migration tools |
 | Prometheus | 0.5 | 512MB | Metrics |
 | Grafana | 0.5 | 512MB | Dashboards |
-
-### Estimated Startup Time
-
-- **Initial startup**: 5-10 minutes
-- **Subsequent startups**: 2-3 minutes
-- **Full cluster formation**: 3-5 minutes
 
 ## Version Information
 

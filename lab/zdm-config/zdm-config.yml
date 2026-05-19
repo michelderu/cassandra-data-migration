@@ -7,7 +7,7 @@ origin_contact_points: dse-node
 origin_port: 9042
 origin_username: cassandra
 origin_password: cassandra
-origin_local_datacenter: dc1
+origin_local_datacenter: datacenter1
 origin_connection_timeout_ms: 30000
 
 # Target cluster (HCD)

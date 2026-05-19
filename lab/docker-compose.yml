@@ -30,8 +30,8 @@ services:
     environment:
       DS_LICENSE: accept  # Only needed for DSE; ignored by Cassandra
       CLUSTER_NAME: DSE_Cluster
-      DC: dc1
-      RACK: Rack1
+      DC: datacenter1
+      RACK: rack1
       SEEDS: dse-node
       START_RPC: "true"
       JVM_EXTRA_OPTS: "-Xms1G -Xmx1G -Xmn512M"
