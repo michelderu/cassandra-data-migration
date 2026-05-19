@@ -72,7 +72,7 @@ graph LR
 - **CDM** ⭐: Cassandra Data Migrator (Spark-based) - **Recommended** for production migrations
 
 **Zero Downtime Migration** (Live traffic cutover)
-- **ZDM Proxy**: Transparent proxy enabling dual-writes and gradual traffic cutover
+- **ZDM Proxy** ⭐: Transparent proxy enabling dual-writes and gradual traffic cutover - **Recommended** for production migrations
 - Supports phased migration: Direct → Proxy (dual-write) → Target
 
 **Typical Migration Flow**:
