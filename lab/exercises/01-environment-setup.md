@@ -81,17 +81,27 @@ docker exec dse-node cqlsh -e "DESC KEYSPACE training;"
 
 ### Step 4: Create Schema on HCD
 
-In this step we intentfuly copy the source schema to the target database. In most cases, unless you transform the data on the go, the schemas have to match.
+In this step we intentionally copy the source schema to the target database. In most cases, unless you transform the data on the go, the schemas have to match.
+
+DSE `DESC KEYSPACE` output includes table options that HCD (Cassandra 4.x) no longer supports, such as `dclocal_read_repair_chance`. Apply the adaptation script before loading on HCD.
 
 ```bash
-# Export schema from DSE
-docker exec dse-node cqlsh -e "DESC KEYSPACE training;" > /tmp/training_schema.cql
+# Export schema from DSE and adapt for HCD
+docker exec dse-node cqlsh -e "DESC KEYSPACE training;" \
+  | ./scripts/adapt_dse_schema_for_hcd.sh > /tmp/training_schema_hcd.cql
 
 # Create on HCD
 docker exec -i hcd-node cqlsh < /tmp/training_schema_hcd.cql
 
 # Verify
 docker exec hcd-node cqlsh -e "DESC KEYSPACE training;"
+```
+
+If a table already partially exists from a failed import, reset before retrying:
+
+```bash
+docker exec hcd-node cqlsh -e "DROP KEYSPACE IF EXISTS training;"
+docker exec -i hcd-node cqlsh < /tmp/training_schema_hcd.cql
 ```
 
 **Validation Checklist:**
@@ -187,6 +197,19 @@ docker exec dse-node netstat -tlnp | grep 9042
 
 # Check if node is ready
 docker exec dse-node nodetool status
+```
+
+### Issue: HCD schema import fails with `dclocal_read_repair_chance`
+
+DSE embeds legacy read-repair options in `DESC KEYSPACE` output. HCD rejects them, so `CREATE TABLE` fails and follow-on `CREATE INDEX` statements report missing tables.
+
+```bash
+# Re-export with the adaptation script (do not pipe DESC output directly into HCD)
+docker exec dse-node cqlsh -e "DESC KEYSPACE training;" \
+  | ./scripts/adapt_dse_schema_for_hcd.sh > /tmp/training_schema_hcd.cql
+
+docker exec hcd-node cqlsh -e "DROP KEYSPACE IF EXISTS training;"
+docker exec -i hcd-node cqlsh < /tmp/training_schema_hcd.cql
 ```
 
 ### Issue: Data generation fails

@@ -120,7 +120,7 @@ docker exec spark-cdm spark-submit \
   --driver-memory 2g \
   --executor-memory 2g \
   --class com.datastax.cdm.job.Migrate \
-  /assets/cassandra-data-migrator-5.6.3.jar \
+  /assets/cassandra-data-migrator-5.8.1.jar \
   2>&1 | tee cdm-logs/migrate-users.log
 
 # Check the logs
@@ -155,7 +155,7 @@ docker exec spark-cdm spark-submit \
   --driver-memory 2g \
   --executor-memory 2g \
   --class com.datastax.cdm.job.Migrate \
-  /assets/cassandra-data-migrator-5.6.3.jar \
+  /assets/cassandra-data-migrator-5.8.1.jar \
   2>&1 | tee cdm-logs/migrate-products.log
 
 # Migrate orders
@@ -166,7 +166,7 @@ docker exec spark-cdm spark-submit \
   --driver-memory 2g \
   --executor-memory 2g \
   --class com.datastax.cdm.job.Migrate \
-  /assets/cassandra-data-migrator-5.6.3.jar \
+  /assets/cassandra-data-migrator-5.8.1.jar \
   2>&1 | tee cdm-logs/migrate-orders.log
 
 # Migrate user_activity
@@ -177,7 +177,7 @@ docker exec spark-cdm spark-submit \
   --driver-memory 2g \
   --executor-memory 2g \
   --class com.datastax.cdm.job.Migrate \
-  /assets/cassandra-data-migrator-5.6.3.jar \
+  /assets/cassandra-data-migrator-5.8.1.jar \
   2>&1 | tee cdm-logs/migrate-user_activity.log
 ```
 
@@ -247,7 +247,7 @@ docker exec spark-cdm spark-submit \
   --driver-memory 2g \
   --executor-memory 2g \
   --class com.datastax.cdm.job.DiffData \
-  /assets/cassandra-data-migrator-5.6.3.jar \
+  /assets/cassandra-data-migrator-5.8.1.jar \
   2>&1 | tee cdm-logs/diffdata-users.log
 
 # Check validation results
@@ -267,7 +267,7 @@ for table in products orders user_activity; do
     --driver-memory 2g \
     --executor-memory 2g \
     --class com.datastax.cdm.job.DiffData \
-    /assets/cassandra-data-migrator-5.6.3.jar \
+    /assets/cassandra-data-migrator-5.8.1.jar \
     2>&1 | tee cdm-logs/diffdata-$table.log
 done
 
@@ -348,7 +348,7 @@ docker exec spark-cdm spark-submit \
   --driver-memory 2g \
   --executor-memory 2g \
   --class com.datastax.cdm.job.Migrate \
-  /assets/cassandra-data-migrator-5.6.3.jar
+  /assets/cassandra-data-migrator-5.8.1.jar
 
 echo "✓ Auto-correction test completed"
 ```
