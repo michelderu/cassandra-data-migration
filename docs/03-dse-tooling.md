@@ -2,7 +2,7 @@
 
 ## Table of Contents
 1. [Overview](#overview)
-2. [DSE Bulk Loader](#dse-bulk-loader)
+2. [DataStax Bulk Loader (DSBulk)](#datastax-bulk-loader-dsbulk)
 3. [DSE OpsCenter](#dse-opscenter)
 4. [DSE Backup Service](#dse-backup-service)
 5. [DSE Specific Considerations](#dse-specific-considerations)
@@ -10,27 +10,27 @@
 
 ## Overview
 
-DataStax Enterprise 5.1 includes proprietary tools designed for data management and migration. While these tools are optimized for DSE-to-DSE migrations, understanding their capabilities helps in planning DSE-to-HCD migrations.
+DataStax Enterprise 5.1 includes proprietary tools designed for data management and migration. This guide also covers the standalone **DataStax Bulk Loader (DSBulk)**, which works with any Cassandra-compatible cluster. Understanding these capabilities helps in planning DSE-to-HCD migrations.
 
-### Key DSE Tools
+### Key Tools
 
 | Tool | Purpose | HCD Compatible | Use in Migration |
 |------|---------|----------------|------------------|
-| DSE Bulk Loader | High-performance data loading | ⚠️ Partial | Export only |
+| DataStax Bulk Loader (DSBulk) | High-performance data loading | ✅ Yes | Export & import |
 | OpsCenter | Cluster management & backup | ❌ No | Backup/monitoring |
 | DSE Backup Service | Automated backups | ❌ No | Pre-migration backup |
 | DSE Analytics | Spark integration | ❌ No | Data transformation |
 
-## DSE Bulk Loader
+## DataStax Bulk Loader (DSBulk)
 
 ### Overview
 
-DSE Bulk Loader (dsbulk) is a high-performance tool for loading and unloading data from DSE clusters. It's significantly faster than the native COPY command.
+DataStax Bulk Loader (`dsbulk`) is a standalone high-performance tool for loading and unloading data from Cassandra-compatible clusters, including DSE and HCD. It's significantly faster than the native COPY command.
 
 ### Installation
 
 ```bash
-# Download DSE Bulk Loader
+# Download DataStax Bulk Loader
 wget https://downloads.datastax.com/dsbulk/dsbulk-1.10.0.tar.gz
 
 # Extract
@@ -371,7 +371,7 @@ echo "Migration completed successfully!"
 ❌ **Point-in-Time**: Snapshot-based, doesn't capture ongoing writes  
 ❌ **Requires Staging**: Need disk space for export files  
 ❌ **Not Real-Time**: Batch processing only  
-❌ **DSE License**: May require DSE license for some features
+❌ **DSE Features**: Does not migrate Search, Graph, or Analytics data
 
 ## DSE OpsCenter
 
@@ -707,7 +707,7 @@ DSE-specific tooling provides powerful capabilities for data management:
 - **DSE Backup Service**: Essential for creating safety backups
 - **DSE Features**: Require separate migration strategies (Search, Analytics, Graph)
 
-For DSE to HCD migration, DSBulk is the most practical DSE tool, while OpsCenter and Backup Service support pre-migration preparation.
+For DSE to HCD migration, DSBulk is the most practical tool for bulk CQL data transfer, while OpsCenter and Backup Service support pre-migration preparation.
 
 ---
 

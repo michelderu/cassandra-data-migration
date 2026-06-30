@@ -4,12 +4,14 @@
 1. [Overview](#overview)
 2. [Architecture](#architecture)
 3. [How ZDM Works](#how-zdm-works)
-4. [Installation and Setup](#installation-and-setup)
-5. [Configuration](#configuration)
-6. [Migration Phases](#migration-phases)
-7. [Monitoring and Validation](#monitoring-and-validation)
-8. [Best Practices](#best-practices)
-9. [Troubleshooting](#troubleshooting)
+4. [Non-Idempotent Operations and Compatibility](#non-idempotent-operations-and-compatibility)
+5. [Installation and Setup](#installation-and-setup)
+6. [Configuration](#configuration)
+7. [ZDM Proxy Sizing and Infrastructure](#zdm-proxy-sizing-and-infrastructure)
+8. [Migration Phases](#migration-phases)
+9. [Monitoring and Validation](#monitoring-and-validation)
+10. [Best Practices](#best-practices)
+11. [Troubleshooting](#troubleshooting)
 
 ## Overview
 
@@ -103,14 +105,14 @@ graph TD
 
 ## How ZDM Proxy Works
 
-ZDM Proxy keeps your databases in sync at all times through its dual-writes feature, which means you can seamlessly stop or abandon the migration at any point before the last phase (the final cutover to the new database).
+ZDM Proxy keeps your databases in sync through its dual-writes feature for idempotent workloads, which means you can seamlessly stop or abandon the migration at any point before the last phase (the final cutover to the new database).
 
 ### Dual-Write Mechanism
 
 When ZDM Proxy is deployed and connected:
 - **Writes**: Sent to both origin and target clusters simultaneously
 - **Reads**: Initially from origin only, gradually shifted to target
-- **Consistency**: Last-write-wins semantics ensure data consistency
+- **Consistency**: Last-write-wins semantics apply to idempotent writes; see [Non-Idempotent Operations and Compatibility](#non-idempotent-operations-and-compatibility) for workloads that need extra reconciliation
 - **Rollback**: Can rollback at any point before final cutover
 
 ### Read Routing Modes
@@ -119,6 +121,66 @@ ZDM Proxy supports three read routing modes:
 - `PRIMARY_ONLY`: Reads from primary cluster only (origin or target)
 - `DUAL`: Asynchronous dual reads for testing target performance
 - `TARGET_ONLY`: All reads from target cluster
+
+## Non-Idempotent Operations and Compatibility
+
+ZDM Proxy forwards the same CQL statement to both clusters without modification (except optional `now()` replacement). This works well for **idempotent** workloads — statements that produce the same result regardless of how many times they run, such as a plain `UPDATE` or `INSERT` by primary key.
+
+**Non-idempotent** CQL operations do not produce the exact same result each time they execute. Whether the write is applied and what value is stored depend on the column's current value or other conditions at request time. Because origin and target are separate clusters that can be briefly out of sync, these operations can leave the clusters in divergent states.
+
+### Common Non-Idempotent Operations
+
+| Operation | Example | Risk during ZDM |
+|-----------|---------|-----------------|
+| Lightweight Transactions (LWTs) | `INSERT ... IF NOT EXISTS`, `UPDATE ... IF` | Condition may pass on one cluster and fail on the other |
+| Counter updates | `UPDATE ... SET count = count + 1` | Increment applied independently on each cluster |
+| Collection updates | `UPDATE ... SET tags = tags + {'new'}` | List/set/map mutations can diverge |
+| Server-side `now()` / `uuid()` | `INSERT ... (id, created) VALUES (uuid(), now())` | Values computed separately on each cluster |
+
+> **Important:** Review your application's CQL workload during preparation. If you use any of the operations above, plan for additional validation and reconciliation — do not assume dual-write alone keeps clusters identical.
+
+### Lightweight Transactions and the `applied` Flag
+
+ZDM Proxy sends LWTs to both clusters concurrently and returns `success` to the client only if **both** clusters acknowledge the request. However, an LWT can succeed on both clusters with **different outcomes**: the condition may be met on the origin but not on the target (or vice versa), modifying data on only one cluster.
+
+During migration, your application receives the `applied` flag from the **primary cluster only** (origin in Phases 1–3, target from Phase 4 onward). It cannot see whether the secondary cluster applied the LWT. If your application logic depends on `applied`, account for this behavior or reconcile before cutover.
+
+**Mitigation:**
+- Run CDM `DiffData` and reconcile mismatches at the end of Phase 2
+- If LWTs continue during Phases 3–4, repeat validation and reconciliation **before and after Phase 4**
+- Because dual-writes continue throughout migration, you may need multiple reconciliation passes to catch inconsistencies that occur while fixing earlier ones
+
+### Server-Side `now()` and `uuid()`
+
+When `now()` or `uuid()` are evaluated on the server, each cluster can produce different values. This is usually harmless for non-primary-key columns if your application tolerates the difference, but it **breaks consistency** when used in primary key columns — the clusters will never be programmatically in sync.
+
+ZDM Proxy can replace server-side `now()` with a single timeUUID computed at the proxy so both clusters receive the same value:
+
+```yaml
+# config.yml - Replace server-side now() with proxy-computed value
+replace_cql_functions: true
+```
+
+This option only replaces `now()`, is disabled by default, and has a measurable performance impact. Test thoroughly before enabling in production. For `uuid()` or other functions, compute values in the client application using driver utilities before sending the statement.
+
+### Driver Retry Policy and Query Idempotence
+
+Rolling restarts of ZDM Proxy instances (required during phase transitions) can cause transient connection errors. Most Cassandra drivers treat statements as **non-idempotent by default** and will not retry them automatically.
+
+Mark safe-to-retry statements as idempotent in your driver configuration so connection failures during proxy restarts do not silently drop writes. See your driver's documentation on query idempotence and retry policies.
+
+### Reconciliation Recommendations
+
+| Workload | Recommended action |
+|----------|-------------------|
+| Idempotent writes only | Standard Phase 2 CDM validation is usually sufficient |
+| LWTs, counters, or collections | Reconcile at end of Phase 2; repeat before and after Phase 4 |
+| Heavy use of `now()`/`uuid()` in PK | Fix application to use client-side values, or enable `replace_cql_functions` for `now()` |
+| Application depends on `applied` flag | Reconcile before Phase 4; understand primary-cluster-only flag behavior |
+
+Whether you need extra reconciliation depends on your application's tolerance for transient inconsistency. CDM is well suited for detecting and correcting these mismatches.
+
+For the full compatibility checklist, see the [DataStax ZDM Proxy feasibility requirements](https://docs.datastax.com/en/data-migration/feasibility-checklists.html).
 
 ## Installation and Setup
 
@@ -280,6 +342,9 @@ proxy_max_stream_ids: 2048
 read_mode: "PRIMARY_ONLY"  # Options: PRIMARY_ONLY, DUAL, TARGET_ONLY
 primary_cluster: "ORIGIN"  # Options: ORIGIN, TARGET
 
+# Optional: replace server-side now() with proxy-computed timeUUID (see Non-Idempotent Operations)
+replace_cql_functions: false
+
 # Write configuration
 async_handshake_timeout_ms: 4000
 forward_client_credentials_to_origin: false
@@ -320,6 +385,92 @@ proxy_ssl_keystore_path: "/path/to/proxy-keystore.jks"
 proxy_ssl_keystore_password: "keystore_password"
 ```
 
+## ZDM Proxy Sizing and Infrastructure
+
+ZDM Proxy sizing depends on your workload, network topology, and instance count. There is no fixed requests-per-second formula — benchmark with your own traffic patterns and scale based on observed CPU, network, and connection utilization.
+
+### Per-Instance Minimum Specifications
+
+Each ZDM Proxy instance should meet these minimums (production):
+
+| Resource | Minimum per instance | Notes |
+|----------|---------------------|-------|
+| CPU | 4 vCPUs | Proxy is CPU-intensive, not memory-heavy |
+| Memory | 8 GB RAM | JVM heap tuning may be needed under high connection counts |
+| Storage | 20–100 GB | Root volume for logs and binaries |
+| Network | Low latency to apps and clusters | Dual-writes double outbound traffic to databases |
+
+For local lab or demo environments, smaller instances are acceptable. The Kubernetes example in [Installation and Setup](#installation-and-setup) uses 2–4 vCPUs and 4–8 GiB as a reasonable starting point.
+
+### Instance Count and High Availability
+
+DataStax recommends **at least three ZDM Proxy instances** for any production migration:
+
+- Avoids a single point of failure during rolling restarts (required for phase transitions)
+- Distributes client connections across instances
+- Allows configuration changes without full deployment downtime
+
+Place proxy instances in the **same availability zone or region as your client applications** for lowest latency. Ensure stable network connectivity from every proxy instance to **all nodes** in both origin and target clusters.
+
+> **Important:** Configure driver topology addresses so clients discover all proxy instances. If drivers connect to only one proxy, that instance becomes a bottleneck and restarts cause outages. See the [DataStax proxy instance management guide](https://docs.datastax.com/en/data-migration/manage-proxy-instances.html).
+
+### Resource Profile
+
+ZDM Proxy characteristics that affect sizing:
+
+- **CPU and network I/O** are the primary bottlenecks — each client write is forwarded to both clusters
+- **Memory** usage is moderate unless connection counts are very high
+- **Latency** increases compared to direct cluster access (typically 5–10% overhead; validate with your workload)
+- **Throughput** may be lower than direct cluster access depending on request size and concurrency
+
+Add proxy instances or upgrade VM CPU/network only when metrics show resources near capacity. Repeat benchmarks after any infrastructure change.
+
+### Configuration Tuning for Scale
+
+```yaml
+# config.yml - Connection and stream limits
+proxy_max_client_connections: 1000   # Lower if high throughput causes degradation
+proxy_max_stream_ids: 2048           # Increase if async dual reads exhaust stream IDs
+async_handshake_timeout_ms: 4000
+```
+
+| Setting | Purpose | When to adjust |
+|---------|---------|----------------|
+| `proxy_max_client_connections` | Caps client connections per instance | High connection count causes CPU or latency issues |
+| `proxy_max_stream_ids` | Stream IDs per backend connection | `async` dual-read errors or stream ID exhaustion in logs |
+| `async_handshake_timeout_ms` | Timeout for async backend connections | Async read handshake failures under load |
+
+Each client connection creates additional cluster connections and in-memory structures. Prefer more proxy instances with moderate connection limits over a few instances with very high connection counts.
+
+### Supporting Infrastructure
+
+A full ZDM deployment also needs machines beyond the proxy tier:
+
+| Role | Minimum specs | Purpose |
+|------|--------------|---------|
+| Jumphost / monitoring | 8 vCPUs, 16 GB RAM | ZDM Utility, Prometheus, Grafana |
+| Data migration (CDM/DSBulk) | 16 vCPUs, 64 GB RAM | Bulk backfill in Phase 2; scale out for multi-TB datasets |
+
+CDM and DSBulk machines are sized for Spark/bulk throughput, not proxy traffic. See [CDM Approach](04-cdm-approach.md) for migration-tool sizing.
+
+### Sizing Workflow
+
+```bash
+# 1. Baseline: measure application performance against origin cluster
+cassandra-stress write n=1000000 -node origin-node1
+
+# 2. Measure through ZDM Proxy (single instance, then three instances)
+cassandra-stress write n=1000000 -node zdm-proxy-host
+
+# 3. Monitor proxy metrics during load test
+curl http://zdm-proxy-host:14001/metrics | grep -E 'process_cpu|process_resident_memory|zdm_proxy'
+
+# 4. Scale horizontally (add instances) before vertically (bigger VMs)
+# 5. Re-test after each change
+```
+
+For full infrastructure planning, see the [DataStax ZDM deployment infrastructure guide](https://docs.datastax.com/en/data-migration/deployment-infrastructure.html).
+
 ## Migration Phases
 
 A migration project includes preparation and five migration phases. The following sections describe the major events in each phase.
@@ -333,9 +484,11 @@ Before beginning the migration, your client applications perform read/write oper
 1. **Review Compatibility Requirements**
    - Ensure clusters, data model, and application logic are compatible with ZDM Proxy
    - Verify matching schemas between origin and target (keyspace names, table names, column names, data types)
+   - Inventory non-idempotent operations (LWTs, counters, collections, `now()`/`uuid()`) — see [Non-Idempotent Operations and Compatibility](#non-idempotent-operations-and-compatibility)
    - Adjust data model or application logic as needed
 
 2. **Prepare Infrastructure**
+   - Size ZDM Proxy instances per [ZDM Proxy Sizing and Infrastructure](#zdm-proxy-sizing-and-infrastructure) (minimum three instances for production)
    ```bash
    # Set up target cluster
    # Create matching schemas on target
@@ -432,6 +585,7 @@ spark-submit --properties-file cdm.properties \
 - Historical data copied from origin to target
 - ZDM Proxy continues dual-write for new data
 - Thorough validation before proceeding
+- If the workload uses non-idempotent operations, run CDM reconciliation at end of Phase 2 and again before and after Phase 4
 
 > **Important:** Do not proceed to Phase 3 until all data is validated and consistent between clusters.
 
@@ -709,16 +863,7 @@ cassandra-stress write n=1000000 -node zdm-proxy-host
 
 ### 3. Capacity Planning
 
-```yaml
-# ZDM Proxy resources per 1000 req/sec:
-CPU: 1 core
-Memory: 2 GB
-Network: 100 Mbps
-
-# Scale horizontally as needed
-# Deploy multiple proxy instances
-# Use load balancer
-```
+See [ZDM Proxy Sizing and Infrastructure](#zdm-proxy-sizing-and-infrastructure) for per-instance specs, instance count, tuning parameters, and the sizing workflow. Scale horizontally (more instances) before vertically (larger VMs), and re-benchmark after each change.
 
 ### 4. High Availability
 
@@ -822,10 +967,12 @@ ZDM Proxy provides a robust solution for zero-downtime migration:
 - ✅ Production-ready
 
 **Considerations:**
-- Additional infrastructure required
-- Proxy adds latency overhead (5-10%)
+- Additional infrastructure required (minimum three proxy instances for production)
+- Proxy adds latency overhead (5–10%; validate with your workload)
+- CPU and network are primary scaling dimensions, not memory
 - Requires monitoring and management
 - Learning curve for operations team
+- Non-idempotent workloads (LWTs, counters, `now()`/`uuid()`) require extra reconciliation
 
 **Best For:**
 - Production environments
